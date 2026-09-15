@@ -13,6 +13,9 @@ import {
   Route,
   Shield,
   SlidersHorizontal,
+  Sparkles,
+  Tag as TagIcon,
+  Server as ServerIcon,
 } from "lucide-react";
 import { useAppStore } from "../store";
 import type { VisualNodeModel } from "../types";
@@ -72,6 +75,16 @@ function constraints(schema: unknown) {
   return parts.length > 0 ? truncate(parts.join(" · "), 140) : "—";
 }
 
+function displayValue(value: unknown) {
+  if (value === undefined || value === null || value === "") return "—";
+  if (typeof value === "string") return value;
+  try {
+    return truncate(JSON.stringify(value) ?? String(value), 180);
+  } catch {
+    return truncate(String(value), 180);
+  }
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="inspector-section">
@@ -87,7 +100,7 @@ function KeyValue({ entries }: { entries: Array<[string, unknown]> }) {
       {entries.map(([key, value]) => (
         <div key={key}>
           <dt>{key}</dt>
-          <dd>{value === undefined || value === null || value === "" ? "—" : String(value)}</dd>
+          <dd>{displayValue(value)}</dd>
         </div>
       ))}
     </dl>
@@ -113,6 +126,93 @@ function DataTable({ headers, rows }: { headers: string[]; rows: React.ReactNode
   );
 }
 
+function exampleRows(examples: unknown): React.ReactNode[][] {
+  if (!isRecord(examples) || Object.keys(examples).length === 0) {
+    return [["—", "—", "—", "No named examples"] as React.ReactNode[]];
+  }
+  return Object.entries(examples).map(([name, example]) => {
+    if (!isRecord(example)) return [name, "—", "inline", displayValue(example)] as React.ReactNode[];
+    const representation = ["dataValue", "serializedValue", "value", "externalValue"].find(
+      (key) => example[key] !== undefined,
+    );
+    return [
+      name,
+      String(example.summary ?? "—"),
+      representation ?? "—",
+      representation ? displayValue(example[representation]) : "—",
+    ] as React.ReactNode[];
+  });
+}
+
+interface EncodingRecordRow {
+  path: string;
+  contentType: unknown;
+  style: unknown;
+  explode: unknown;
+  nested: string[];
+}
+
+function collectEncodingRows(
+  value: unknown,
+  path: string,
+  output: EncodingRecordRow[],
+  depth = 0,
+) {
+  if (!isRecord(value) || depth > 4) return;
+  output.push({
+    path,
+    contentType: value.contentType,
+    style: value.style,
+    explode: value.explode,
+    nested: [
+      ...Object.keys(isRecord(value.encoding) ? value.encoding : {}).map((key) => `encoding:${key}`),
+      ...(Array.isArray(value.prefixEncoding) ? value.prefixEncoding.map((_, index) => `prefix:${index}`) : []),
+      ...(isRecord(value.itemEncoding) ? ["itemEncoding"] : []),
+    ],
+  });
+
+  if (isRecord(value.encoding)) {
+    for (const [name, encoding] of Object.entries(value.encoding)) {
+      collectEncodingRows(encoding, `${path}/encoding:${name}`, output, depth + 1);
+    }
+  }
+  if (Array.isArray(value.prefixEncoding)) {
+    value.prefixEncoding.forEach((encoding, index) => {
+      collectEncodingRows(encoding, `${path}/prefix:${index}`, output, depth + 1);
+    });
+  }
+  if (isRecord(value.itemEncoding)) {
+    collectEncodingRows(value.itemEncoding, `${path}/itemEncoding`, output, depth + 1);
+  }
+}
+
+function encodingRows(value: unknown): React.ReactNode[][] {
+  const rows: EncodingRecordRow[] = [];
+  collectEncodingRows(value, "media type", rows);
+  if (rows.length <= 1 && (rows.length === 0 || rows[0].nested.length === 0)) return [];
+  return rows.map((row) => [
+    row.path,
+    displayValue(row.contentType),
+    displayValue(row.style),
+    row.explode === true ? "yes" : row.explode === false ? "no" : "—",
+    row.nested.length > 0 ? row.nested.join(", ") : "—",
+  ]);
+}
+
+function oauthFlowRows(flows: Record<string, unknown>): React.ReactNode[][] {
+  const rows = Object.entries(flows).map(([name, flow]) => {
+    const record = isRecord(flow) ? flow : {};
+    return [
+      name,
+      displayValue(record.authorizationUrl ?? record.deviceAuthorizationUrl),
+      displayValue(record.tokenUrl),
+      displayValue(record.refreshUrl),
+      Object.keys(isRecord(record.scopes) ? record.scopes : {}).join(", ") || "—",
+    ] as React.ReactNode[];
+  });
+  return rows.length > 0 ? rows : [["—", "—", "—", "—", "No OAuth flows"] as React.ReactNode[]];
+}
+
 function inspectorIcon(model: VisualNodeModel) {
   switch (model.kind) {
     case "root":
@@ -130,6 +230,14 @@ function inspectorIcon(model: VisualNodeModel) {
       return ArrowDownLeft;
     case "securityScheme":
       return Shield;
+    case "mediaType":
+      return Braces;
+    case "tag":
+      return TagIcon;
+    case "server":
+      return ServerIcon;
+    case "example":
+      return Sparkles;
     default:
       return Braces;
   }
@@ -260,12 +368,17 @@ export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
                     entries={[
                       ["File", document.fileName],
                       ["Specification", document.stats.specification],
+                      ["$self", document.raw.$self],
+                      ["JSON Schema dialect", document.raw.jsonSchemaDialect],
                       ["Title", isRecord(document.raw.info) ? document.raw.info.title : "—"],
                       ["Version", isRecord(document.raw.info) ? document.raw.info.version : "—"],
                       ["Paths", document.stats.paths],
                       ["Operations", document.stats.operations],
                       ["Webhooks", document.stats.webhooks],
                       ["Schemas", document.stats.schemas],
+                      ["Reusable media types", document.stats.mediaTypes],
+                      ["Additional operations", document.stats.additionalOperations],
+                      ["Streaming media types", document.stats.streamingMediaTypes],
                       ["References", document.stats.refs],
                       ["Deprecated nodes", document.stats.deprecated],
                     ]}
@@ -275,6 +388,7 @@ export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
                   <KeyValue
                     entries={[
                       ["External references", document.stats.externalRefs],
+                      ["Unresolved internal references", document.stats.unresolvedInternalRefs],
                       ["Potentially unused schemas", document.stats.orphanSchemas],
                     ]}
                   />
@@ -288,6 +402,7 @@ export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
                   <KeyValue
                     entries={[
                       ["Method", model.metadata.method ?? "—"],
+                      ["Operation kind", model.metadata.additionalOperation === true ? "additional operation" : "fixed operation"],
                       ["Path", model.metadata.path ?? "—"],
                       ["Operation ID", record.operationId ?? "—"],
                       ["Deprecated", record.deprecated ? "yes" : "no"],
@@ -334,6 +449,39 @@ export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
                 <Section title="Constraints">
                   <p className="description mono">{constraints(value)}</p>
                 </Section>
+                {isRecord(record.discriminator) ? (
+                  <Section title="Discriminator">
+                    <KeyValue
+                      entries={[
+                        ["Property name", record.discriminator.propertyName],
+                        ["Default mapping", record.discriminator.defaultMapping],
+                      ]}
+                    />
+                    {isRecord(record.discriminator.mapping) ? (
+                      <DataTable
+                        headers={["Payload value", "Schema name or URI"]}
+                        rows={Object.entries(record.discriminator.mapping).map(([payloadValue, target]) => [
+                          payloadValue,
+                          displayValue(target),
+                        ])}
+                      />
+                    ) : null}
+                  </Section>
+                ) : null}
+                {isRecord(record.xml) ? (
+                  <Section title="XML">
+                    <KeyValue
+                      entries={[
+                        ["Node type", record.xml.nodeType],
+                        ["Name", record.xml.name],
+                        ["Namespace", record.xml.namespace],
+                        ["Prefix", record.xml.prefix],
+                        ["Attribute", record.xml.attribute ? "yes" : "no"],
+                        ["Wrapped", record.xml.wrapped ? "yes" : "no"],
+                      ]}
+                    />
+                  </Section>
+                ) : null}
                 {isRecord(record.properties) ? (
                   <Section title="Properties">
                     <DataTable
@@ -362,20 +510,58 @@ export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
                     ["Style", record.style ?? "—"],
                     ["Explode", record.explode ? "yes" : "no"],
                     ["Type", isRecord(record.schema) ? schemaType(record.schema) : "—"],
+                    ["Content types", contentTypes(record)],
                   ]}
                 />
               </Section>
             ) : null}
+            {model.kind === "parameter" && (record.example !== undefined || isRecord(record.examples)) ? (
+              <Section title="Parameter examples">
+                {record.example !== undefined ? (
+                  <KeyValue
+                    entries={[
+                      ["Inline example", record.example],
+                    ]}
+                  />
+                ) : null}
+                {isRecord(record.examples) ? (
+                  <DataTable headers={["Name", "Summary", "Representation", "Value"]} rows={exampleRows(record.examples)} />
+                ) : null}
+              </Section>
+            ) : null}
 
             {model.kind === "requestBody" || model.kind === "response" || model.kind === "mediaType" ? (
-              <Section title="Payload">
+              <Section title={model.kind === "mediaType" ? "Media type" : "Payload"}>
                 <KeyValue
                   entries={[
-                    ["Content types", contentTypes(value)],
+                    [
+                      "Content types",
+                      model.kind === "mediaType"
+                        ? model.metadata.contentType ?? model.title
+                        : contentTypes(value),
+                    ],
                     ["Description", record.description ?? "—"],
                     ["Required", record.required ? "yes" : "no"],
-                    ["Schema reference", firstRef(value) ?? "inline or absent"],
+                    ["Schema reference", firstRef(record.schema) ?? firstRef(value) ?? "inline or absent"],
+                    ["Item schema reference", firstRef(record.itemSchema) ?? "—"],
+                    ["Sequential / streaming", model.metadata.streaming === true ? "yes" : "no"],
+                    ["Inline example", model.kind === "mediaType" ? record.example : undefined],
                   ]}
+                />
+                {encodingRows(value).length > 0 ? (
+                  <DataTable
+                    headers={["Path", "Content type", "Style", "Explode", "Nested"]}
+                    rows={encodingRows(value)}
+                  />
+                ) : null}
+              </Section>
+            ) : null}
+
+            {model.kind === "mediaType" ? (
+              <Section title="Examples">
+                <DataTable
+                  headers={["Name", "Summary", "Representation", "Value"]}
+                  rows={exampleRows(record.examples)}
                 />
               </Section>
             ) : null}
@@ -389,6 +575,57 @@ export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
                     ["Bearer format", record.bearerFormat ?? "—"],
                     ["In", record.in ?? "—"],
                     ["Flows", Object.keys(isRecord(record.flows) ? record.flows : {}).join(", ") || "—"],
+                    ["OAuth metadata URL", record.oauth2MetadataUrl],
+                    ["OpenID Connect URL", record.openIdConnectUrl],
+                    ["Deprecated", record.deprecated ? "yes" : "no"],
+                  ]}
+                />
+                {isRecord(record.flows) ? (
+                  <DataTable
+                    headers={["Flow", "Authorization URL", "Token URL", "Refresh URL", "Scopes"]}
+                    rows={oauthFlowRows(record.flows)}
+                  />
+                ) : null}
+              </Section>
+            ) : null}
+
+            {model.kind === "tag" ? (
+              <Section title="Tag">
+                <KeyValue
+                  entries={[
+                    ["Name", record.name],
+                    ["Summary", record.summary],
+                    ["Kind", record.kind],
+                    ["Parent", record.parent],
+                    ["External docs", isRecord(record.externalDocs) ? record.externalDocs.url : undefined],
+                  ]}
+                />
+              </Section>
+            ) : null}
+
+            {model.kind === "server" ? (
+              <Section title="Server">
+                <KeyValue
+                  entries={[
+                    ["Name", record.name],
+                    ["URL", record.url],
+                    ["Description", record.description],
+                    ["Variables", Object.keys(isRecord(record.variables) ? record.variables : {}).join(", ")],
+                  ]}
+                />
+              </Section>
+            ) : null}
+
+            {model.kind === "example" ? (
+              <Section title="Example">
+                <KeyValue
+                  entries={[
+                    ["Summary", record.summary],
+                    ["Description", record.description],
+                    ["Data value", record.dataValue],
+                    ["Serialized value", record.serializedValue],
+                    ["External value", record.externalValue],
+                    ["Legacy value", record.value],
                   ]}
                 />
               </Section>
@@ -487,7 +724,7 @@ function responseTable(responses: unknown) {
   if (!isRecord(responses)) return [["—", "No responses", "—"] as React.ReactNode[]];
   return Object.entries(responses).map(([status, response]) => [
     status,
-    isRecord(response) ? String(response.description ?? "—") : "—",
+    isRecord(response) ? String(response.summary ?? response.description ?? "—") : "—",
     firstRef(response) ?? "inline or absent",
   ] as React.ReactNode[]);
 }

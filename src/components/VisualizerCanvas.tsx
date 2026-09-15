@@ -103,7 +103,19 @@ function iconFor(kind: VisualNodeKind) {
 
 function methodClass(model: VisualNodeModel) {
   if (model.kind !== "operation" || typeof model.metadata.method !== "string") return undefined;
-  return `method-${model.metadata.method.toLowerCase()}`;
+  const method = model.metadata.method.toLowerCase();
+  const normalized = [
+    "get",
+    "post",
+    "put",
+    "patch",
+    "delete",
+    "options",
+    "head",
+    "trace",
+    "query",
+  ].includes(method) ? method : "additional";
+  return `method-${normalized}`;
 }
 
 function VisualNodeCard({ data }: NodeProps) {
@@ -136,6 +148,13 @@ function VisualNodeCard({ data }: NodeProps) {
       <div className="visual-node-footer">
         <span className="visual-node-kind">{prettifyKind(model.kind)}</span>
         {model.metadata.deprecated === true ? <span className="chip danger">deprecated</span> : null}
+        {model.metadata.streaming === true ? <span className="chip accent">stream</span> : null}
+        {model.kind === "parameter" && model.metadata.querystring === true ? (
+          <span className="chip accent">querystring</span>
+        ) : null}
+        {model.kind === "operation" && model.metadata.additionalOperation === true ? (
+          <span className="chip muted">custom</span>
+        ) : null}
         {model.kind === "schema" && model.metadata.orphan === true ? (
           <span className="chip muted">orphan</span>
         ) : null}
@@ -222,6 +241,20 @@ function Canvas() {
     const allowed = new Set(visible);
 
     if (methodSet.size > 0) {
+      const outgoing = new Map<string, string[]>();
+      for (const edge of document.edges) {
+        const targets = outgoing.get(edge.source) ?? [];
+        targets.push(edge.target);
+        outgoing.set(edge.source, targets);
+      }
+      const blocked = new Set<string>();
+      const blockDescendants = (id: string) => {
+        if (blocked.has(id)) return;
+        blocked.add(id);
+        for (const targetId of outgoing.get(id) ?? []) {
+          if (document.models.get(targetId)?.primaryParentId === id) blockDescendants(targetId);
+        }
+      };
       for (const id of visible) {
         const model = document.models.get(id);
         if (
@@ -229,9 +262,10 @@ function Canvas() {
           typeof model.metadata.method === "string" &&
           !methodSet.has(model.metadata.method)
         ) {
-          allowed.delete(id);
+          blockDescendants(id);
         }
       }
+      for (const id of blocked) allowed.delete(id);
     }
 
     const flowNodes = [...allowed].map((id) => {
@@ -336,6 +370,8 @@ function edgeStyle(relation: string) {
       return { stroke: "var(--edge-response)", strokeWidth: 1.7 };
     case "security":
       return { stroke: "var(--edge-security)", strokeWidth: 1.4 };
+    case "tag":
+      return { stroke: "var(--edge-tag)", strokeWidth: 1.2, strokeDasharray: "4 6" };
     case "ref":
       return { stroke: "var(--edge-ref)", strokeWidth: 1.6, strokeDasharray: "6 5" };
     case "parameter":
@@ -355,6 +391,7 @@ function minimapColor(model: VisualNodeModel, theme: "light" | "dark") {
             put: "#ea580c",
             patch: "#7c3aed",
             delete: "#dc2626",
+            query: "#0f766e",
             options: "#0284c7",
             head: "#0284c7",
             trace: "#0284c7",
@@ -365,6 +402,7 @@ function minimapColor(model: VisualNodeModel, theme: "light" | "dark") {
           put: "#fb923c",
           patch: "#c084fc",
           delete: "#f87171",
+          query: "#2dd4bf",
           options: "#38bdf8",
           head: "#38bdf8",
           trace: "#38bdf8",

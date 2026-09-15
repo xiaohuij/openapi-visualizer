@@ -1,13 +1,14 @@
-$schema: https://spec.openapis.org/oas/3.1/schema/2022-10-07
-openapi: 3.1.0
+$schema: https://spec.openapis.org/oas/3.2/schema/2024-10-31
+openapi: 3.2.0
+$self: https://api.petstoreapi.com/v1/openapi.json
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Modern Petstore API
   summary: A modern, realistic pet store API demonstrating current best practices
   description: |-
-    This is a modern Pet Store API adapted from the Modern Petstore OpenAPI 3.2 reference for OpenAPI 3.1. It demonstrates contemporary API design patterns and best practices including RESTful compliance, proper HTTP methods, structured error responses (RFC 9457), and modern authentication flows.
+    This is a modern Pet Store API based on the OpenAPI 3.2 specification. It demonstrates contemporary API design patterns and best practices including RESTful compliance, proper HTTP methods, structured error responses (RFC 9457), and modern authentication flows.
 
-    Key features include pet catalog browsing, adoption workflow, order management, user accounts, AI-powered chat advisor, and real-time event notifications via webhooks. The API showcases OpenAPI 3.1 capabilities like reusable path items, webhooks, OAuth device flow, and server-sent events.
+    Key features include pet catalog browsing, adoption workflow, order management, user accounts, AI-powered chat advisor, and real-time event notifications via webhooks. The API showcases OpenAPI 3.2 capabilities like hierarchical tags, QUERY HTTP method, OAuth device flow, and server-sent events.
 
     Some useful links:
     - [API Documentation](https://docs.petstoreapi.com)
@@ -25,24 +26,32 @@ tags:
   - name: Store
     summary: Store operations
     description: Store operations including orders and inventory
+    kind: category
   - name: Pet
     summary: Pet management
     description: Pet catalog and management operations
+    kind: resource
+    parent: Store
   - name: Payments
     summary: Payment processing
     description: Payment processing with polymorphic payment sources
+    kind: resource
+    parent: Store
   - name: User
     summary: User accounts
     description: User account management
+    kind: resource
   - name: Chat
     summary: AI Chat
     description: AI-powered chat completions with streaming support using Server-Sent Events (SSE)
+    kind: feature
     externalDocs:
       description: Learn more about Chat API
       url: https://petstoreapi.com/docs/chat
   - name: Webhooks
     summary: Event notifications
-    description: Event-driven webhook notifications (OpenAPI 3.1)
+    description: Event-driven webhook notifications (OpenAPI 3.2)
+    kind: system
     externalDocs:
       description: Learn more about webhooks
       url: https://petstoreapi.com/docs/webhooks
@@ -555,6 +564,177 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+    query:
+      summary: Advanced Pet Search (QUERY method)
+      deprecated: false
+      description: >-
+        Perform complex pet searches using the QUERY HTTP method (RFC draft-ietf-httpbis-safe-method-w-body). Unlike
+        GET, this allows sending structured search criteria in the request body while maintaining safe, idempotent
+        semantics.
+
+
+        ## Why QUERY?
+
+
+        The QUERY method is ideal for:
+
+        - **Complex queries** that exceed URL length limits
+
+        - **Structured search criteria** better expressed in JSON
+
+        - **Safe operations** that don't modify resources
+
+        - **Cacheable results** like GET requests
+
+
+        ## Use Cases
+
+
+        - Multi-criteria searches (medical history, temperament, location)
+
+        - Saved search queries reused programmatically
+
+        - Advanced filtering with nested conditions
+
+
+        This endpoint returns the same response format as GET /pets but accepts complex search criteria in the body.
+      operationId: searchPets
+      tags:
+        - Pet
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                criteria:
+                  type: object
+                  description: Search criteria for finding pets
+                  properties:
+                    species:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                          - DOG
+                          - CAT
+                          - RABBIT
+                          - BIRD
+                          - REPTILE
+                          - OTHER
+                      description: Filter by one or more species
+                    ageRange:
+                      type: object
+                      properties:
+                        min:
+                          type: integer
+                          minimum: 0
+                        max:
+                          type: integer
+                          minimum: 0
+                    size:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                          - SMALL
+                          - MEDIUM
+                          - LARGE
+                    compatibility:
+                      type: object
+                      properties:
+                        goodWithKids:
+                          type: boolean
+
+                    medical:
+                      type: object
+                      properties:
+                        vaccinated:
+                          type: boolean
+                        spayedNeutered:
+                          type: boolean
+                        specialNeeds:
+                          type: boolean
+                sort:
+                  type: object
+                  properties:
+                    field:
+                      type: string
+                      enum:
+                        - ageMonths
+                        - price
+                    order:
+                      type: string
+                      enum:
+                        - ASC
+                        - DESC
+                pagination:
+                  type: object
+                  properties:
+                    page:
+                      type: integer
+                      minimum: 1
+                      default: 1
+                    limit:
+                      type: integer
+                      minimum: 1
+                      maximum: 100
+                      default: 20
+            examples:
+              family-friendly-dogs:
+                summary: Family-friendly dogs
+                value:
+                  criteria:
+                    species:
+                      - DOG
+                    ageRange:
+                      min: 12
+                      max: 72
+                    size:
+                      - medium
+                      - large
+                    compatibility:
+                      goodWithKids: true
+
+                    medical:
+                      vaccinated: true
+                      spayedNeutered: true
+                  sort:
+                    field: age_months
+                    order: asc
+                  pagination:
+                    page: 1
+                    limit: 20
+      responses:
+        '200':
+          description: Search results
+          headers:
+            RateLimit-Limit:
+              $ref: '#/components/headers/RateLimit-Limit'
+            RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimit-Remaining'
+            RateLimit-Reset:
+              $ref: '#/components/headers/RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - pagination
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Pet'
+                  pagination:
+                    $ref: '#/components/schemas/PaginationInfo'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '429':
           $ref: '#/components/responses/TooManyRequests'
   /chat/completions:
@@ -2316,6 +2496,32 @@ components:
                 description: Machine-readable error code
             unevaluatedProperties: false
       unevaluatedProperties: false
+    PaginationInfo:
+      type: object
+      description: Pagination metadata for collection responses
+      required:
+        - page
+        - limit
+        - totalItems
+        - totalPages
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          description: Current page number
+        limit:
+          type: integer
+          minimum: 1
+          description: Number of items per page
+        totalItems:
+          type: integer
+          minimum: 0
+          description: Total number of items
+        totalPages:
+          type: integer
+          minimum: 0
+          description: Total number of pages
+      unevaluatedProperties: false
   responses:
     BadRequest:
       description: Bad request - Invalid parameters
@@ -2484,7 +2690,7 @@ components:
             read:user: Read user profile
             write:user: Update user profile
             chat:write: Access AI chat completions
-        deviceCode:
+        deviceAuthorization:
           deviceAuthorizationUrl: https://auth.petstoreapi.com/device/authorize
           tokenUrl: https://auth.petstoreapi.com/token
           refreshUrl: https://auth.petstoreapi.com/refresh
@@ -2620,6 +2826,96 @@ components:
             $ref: '#/components/responses/Unauthorized'
           '404':
             $ref: '#/components/responses/NotFound'
+  mediaTypes:
+    pet-json:
+      schema:
+        $ref: '#/components/schemas/Pet'
+      examples:
+        cat-example:
+          summary: A friendly cat
+          value:
+            id: 01936c8f-1234-7000-8000-111111111111
+            species: CAT
+            name: Whiskers
+            breed: Domestic Shorthair
+            ageMonths: 18
+            size: MEDIUM
+            goodWithKids: true
+
+            price: "75.00"
+            status: AVAILABLE
+        dog-example:
+          summary: An energetic dog
+          value:
+            id: 01936c8f-2345-7000-8000-222222222222
+            species: DOG
+            name: Max
+            breed: Labrador Retriever
+            ageMonths: 24
+            size: LARGE
+            goodWithKids: true
+
+            price: "150.00"
+            status: AVAILABLE
+    pet-collection-json:
+      schema:
+        type: object
+        required:
+          - data
+          - pagination
+        properties:
+          data:
+            type: array
+            items:
+              $ref: '#/components/schemas/Pet'
+          pagination:
+            $ref: '#/components/schemas/PaginationInfo'
+      examples:
+        pets-page-1:
+          summary: First page of pets
+          value:
+            data:
+              - id: 01936c8f-1234-7000-8000-111111111111
+                species: CAT
+                name: Whiskers
+                ageMonths: 18
+                status: AVAILABLE
+            pagination:
+              page: 1
+              limit: 20
+              totalItems: 45
+              totalPages: 3
+    event-stream:
+      schema:
+        type: string
+        contentMediaType: text/event-stream
+        description: Server-Sent Events stream with incremental chat completion tokens
+      examples:
+        chat-stream:
+          summary: Chat completion stream
+          value: >+
+            data:
+            {"id":"chatcmpl_abc123","object":"chat.completion.chunk","choices":[{"delta":{"content":"Hello"},"index":0}]}
+
+
+            data: {"id":"chatcmpl_abc123","object":"chat.completion.chunk","choices":[{"delta":{"content":"
+            there!"},"index":0}]}
+
+
+            data: [DONE]
+
+    problem-json:
+      schema:
+        $ref: '#/components/schemas/Error'
+      examples:
+        not-found:
+          summary: Resource not found
+          value:
+            type: https://petstoreapi.com/errors/not-found
+            title: Not Found
+            status: 404
+            detail: The requested pet with ID '00000000-0000-0000-0000-invalid00000' was not found
+            instance: /v1/pets/00000000-0000-0000-0000-invalid00000
 servers:
   - url: https://api.petstoreapi.com/v1
     description: Production server

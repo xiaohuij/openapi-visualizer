@@ -11,10 +11,27 @@ import type {
 } from "../types";
 import { isRecord, schemaType } from "./utils";
 
-const HTTP_METHODS = ["get", "put", "post", "delete", "options", "head", "patch", "trace"] as const;
+const HTTP_METHODS = [
+  "get",
+  "put",
+  "post",
+  "delete",
+  "options",
+  "head",
+  "patch",
+  "trace",
+  "query",
+] as const;
 type HttpMethod = (typeof HTTP_METHODS)[number];
-const SUPPORTED_OPENAPI_VERSION = /^3\.(?:0|1)\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
-const SUPPORTED_SWAGGER_VERSION = /^2\.0\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const SUPPORTED_OPENAPI_VERSION = /^3\.(?:0|1|2)\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const SUPPORTED_SWAGGER_VERSION = /^2\.0(?:\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)?$/;
+const SEQUENTIAL_MEDIA_TYPES = new Set([
+  "application/jsonl",
+  "application/json-seq",
+  "application/x-ndjson",
+  "text/event-stream",
+  "multipart/mixed",
+]);
 
 const COMPONENT_KINDS: Record<string, VisualNodeKind> = {
   schemas: "schema",
@@ -27,6 +44,7 @@ const COMPONENT_KINDS: Record<string, VisualNodeKind> = {
   links: "generic",
   callbacks: "generic",
   pathItems: "path",
+  mediaTypes: "mediaType",
 };
 
 const SWAGGER_COMPONENT_KINDS: Record<string, VisualNodeKind> = {
@@ -38,6 +56,49 @@ const SWAGGER_COMPONENT_KINDS: Record<string, VisualNodeKind> = {
 
 function isHttpMethod(value: string): value is HttpMethod {
   return (HTTP_METHODS as readonly string[]).includes(value);
+}
+
+interface PathOperationEntry {
+  method: string;
+  displayMethod: string;
+  value: Record<string, unknown>;
+  pointer: string;
+  additional: boolean;
+}
+
+function pathOperations(pathItem: Record<string, unknown>, base: string): PathOperationEntry[] {
+  const entries: PathOperationEntry[] = [];
+  for (const method of HTTP_METHODS) {
+    const value = pathItem[method];
+    if (!isRecord(value)) continue;
+    entries.push({
+      method,
+      displayMethod: method.toUpperCase(),
+      value,
+      pointer: `${base}/${method}`,
+      additional: false,
+    });
+  }
+
+  const additionalOperations = pathItem.additionalOperations;
+  if (isRecord(additionalOperations)) {
+    for (const [method, value] of Object.entries(additionalOperations)) {
+      if (!isRecord(value) || isHttpMethod(method.toLowerCase())) continue;
+      entries.push({
+        method,
+        displayMethod: method,
+        value,
+        pointer: `${base}/additionalOperations/${appendPointer("", method).replace(/^\//, "")}`,
+        additional: true,
+      });
+    }
+  }
+  return entries;
+}
+
+function isSequentialMediaType(contentType: string) {
+  const normalized = contentType.split(";")[0].trim().toLowerCase();
+  return SEQUENTIAL_MEDIA_TYPES.has(normalized);
 }
 
 function pointerTokens(pointer: string) {
@@ -77,12 +138,20 @@ function inferKindFromPointer(pointer: string): VisualNodeKind {
   if (normalized.includes("/requestBodies/")) return "requestBody";
   if (normalized.includes("/responses/")) return "response";
   if (normalized.includes("/examples/")) return "example";
+  if (normalized.includes("/mediaTypes/")) return "mediaType";
   return "generic";
 }
 
 function countRefs(value: unknown): { internal: number; external: number } {
-  let internal = 0;
-  let external = 0;
+  const references = collectRefs(value);
+  return {
+    internal: references.filter((reference) => reference.startsWith("#/")).length,
+    external: references.filter((reference) => !reference.startsWith("#/")).length,
+  };
+}
+
+function collectRefs(value: unknown): string[] {
+  const references: string[] = [];
   const visit = (item: unknown) => {
     if (Array.isArray(item)) {
       item.forEach(visit);
@@ -91,14 +160,13 @@ function countRefs(value: unknown): { internal: number; external: number } {
     if (!isRecord(item)) return;
     for (const [key, child] of Object.entries(item)) {
       if (key === "$ref" && typeof child === "string") {
-        if (child.startsWith("#/")) internal += 1;
-        else external += 1;
+        references.push(child);
       }
       visit(child);
     }
   };
   visit(value);
-  return { internal, external };
+  return references;
 }
 
 interface CreateModelInput {
@@ -155,7 +223,7 @@ class VisualDocumentBuilder {
     label?: string,
   ) {
     if (parent.id === child.id) return;
-    const pair = `${parent.id}→${child.id}:${relation}`;
+    const pair = `${parent.id}→${child.id}:${relation}:${label ?? ""}`;
     if (this.edgePairs.has(pair)) return;
     this.edgePairs.add(pair);
     const edge: VisualEdgeModel = {
@@ -199,7 +267,11 @@ class VisualDocumentBuilder {
       subtitle: specification,
       pointer: "#",
       value: this.raw,
-      metadata: { specification },
+      metadata: {
+        specification,
+        self: this.raw.$self,
+        jsonSchemaDialect: this.raw.jsonSchemaDialect,
+      },
     });
 
     this.createTopLevelGroups(root);
@@ -221,6 +293,8 @@ class VisualDocumentBuilder {
   }
 
   private createTopLevelGroups(root: VisualNodeModel) {
+    const tagModels = this.createTagTopology(root);
+
     if (isRecord(this.raw.paths)) {
       const group = this.create({
         id: "visualizer:group/paths",
@@ -231,7 +305,7 @@ class VisualDocumentBuilder {
         value: this.raw.paths,
       });
       this.connect(root, group);
-      this.createPathItems(group, this.raw.paths, "#/paths", false);
+      this.createPathItems(group, this.raw.paths, "#/paths", false, tagModels);
     }
 
     if (isRecord(this.raw.webhooks)) {
@@ -244,7 +318,7 @@ class VisualDocumentBuilder {
         value: this.raw.webhooks,
       });
       this.connect(root, group);
-      this.createPathItems(group, this.raw.webhooks, "#/webhooks", true);
+      this.createPathItems(group, this.raw.webhooks, "#/webhooks", true, tagModels);
     }
 
     const components = isRecord(this.raw.components) ? this.raw.components : undefined;
@@ -282,6 +356,8 @@ class VisualDocumentBuilder {
       this.createComponentItems(group, category, value, `#/${category}`, kind);
     }
 
+    this.connectOperationSecurity();
+
     if (Array.isArray(this.raw.servers) && this.raw.servers.length > 0) {
       const group = this.create({
         id: "visualizer:group/servers",
@@ -293,12 +369,15 @@ class VisualDocumentBuilder {
       });
       this.connect(root, group);
       this.raw.servers.forEach((server, index) => {
+        const name = isRecord(server) && typeof server.name === "string" ? server.name : undefined;
+        const url = isRecord(server) && typeof server.url === "string" ? server.url : undefined;
         const model = this.create({
           kind: "server",
-          title: isRecord(server) ? String(server.url ?? `Server ${index + 1}`) : `Server ${index + 1}`,
-          subtitle: isRecord(server) ? getDescription(server) : undefined,
+          title: name ?? url ?? `Server ${index + 1}`,
+          subtitle: name ? url ?? getDescription(server) : getDescription(server),
           pointer: `#/servers/${index}`,
           value: server,
+          metadata: { serverName: name },
         });
         this.connect(group, model);
       });
@@ -330,29 +409,6 @@ class VisualDocumentBuilder {
         },
       });
       this.connect(group, server);
-    }
-
-    if (Array.isArray(this.raw.tags) && this.raw.tags.length > 0) {
-      const group = this.create({
-        id: "visualizer:group/tags",
-        kind: "group",
-        title: "Tags",
-        subtitle: `${this.raw.tags.length} tags`,
-        pointer: "#/tags",
-        value: this.raw.tags,
-      });
-      this.connect(root, group);
-      this.raw.tags.forEach((tag, index) => {
-        if (!isRecord(tag) || typeof tag.name !== "string") return;
-        const model = this.create({
-          kind: "tag",
-          title: tag.name,
-          subtitle: getDescription(tag),
-          pointer: `#/tags/${index}`,
-          value: tag,
-        });
-        this.connect(group, model);
-      });
     }
 
     const remainingComponents = componentEntries.filter(([category]) => !handledCategories.has(category));
@@ -394,42 +450,112 @@ class VisualDocumentBuilder {
     }
   }
 
-  private createPathItems(parent: VisualNodeModel, pathItems: Record<string, unknown>, base: string, webhook: boolean) {
+  private connectOperationSecurity() {
+    for (const model of this.models.values()) {
+      if (model.kind !== "operation" || !isRecord(model.value) || !Array.isArray(model.value.security)) continue;
+      for (const requirement of model.value.security) {
+        if (!isRecord(requirement)) continue;
+        for (const name of Object.keys(requirement)) {
+          const targetId = this.refIndex.get(`security-name:${name}`);
+          const target = targetId ? this.models.get(targetId) : undefined;
+          if (target) this.connect(model, target, "security", name);
+        }
+      }
+    }
+  }
+
+  private createTagTopology(root: VisualNodeModel) {
+    const modelsByName = new Map<string, VisualNodeModel>();
+    if (!Array.isArray(this.raw.tags) || this.raw.tags.length === 0) return modelsByName;
+
+    const group = this.create({
+      id: "visualizer:group/tags",
+      kind: "group",
+      title: "Tags",
+      subtitle: `${this.raw.tags.length} tags`,
+      pointer: "#/tags",
+      value: this.raw.tags,
+      metadata: { tagHierarchy: true },
+    });
+    this.connect(root, group);
+
+    this.raw.tags.forEach((tag, index) => {
+      if (!isRecord(tag) || typeof tag.name !== "string") return;
+      const model = this.create({
+        kind: "tag",
+        title: tag.name,
+        subtitle: [tag.kind, tag.summary].filter(Boolean).join(" · ") || getDescription(tag),
+        pointer: `#/tags/${index}`,
+        value: tag,
+        metadata: {
+          summary: tag.summary,
+          kind: tag.kind,
+          parent: tag.parent,
+        },
+      });
+      modelsByName.set(tag.name, model);
+    });
+
+    for (const model of modelsByName.values()) {
+      const parentName = model.metadata.parent;
+      const parent = typeof parentName === "string" ? modelsByName.get(parentName) : undefined;
+      if (parent) this.connect(parent, model, "contains", "parent");
+      else this.connect(group, model);
+    }
+    return modelsByName;
+  }
+
+  private createPathItems(
+    parent: VisualNodeModel,
+    pathItems: Record<string, unknown>,
+    base: string,
+    webhook: boolean,
+    tagModels: Map<string, VisualNodeModel>,
+  ) {
     for (const [path, item] of Object.entries(pathItems)) {
       if (!isRecord(item)) continue;
       const pointer = `${base}/${appendPointer("", path).replace(/^\//, "")}`;
-      const methodCount = Object.keys(item).filter(isHttpMethod).length;
+      const operations = pathOperations(item, pointer);
       const pathModel = this.create({
         kind: webhook ? "webhook" : "path",
         title: path,
-        subtitle: `${methodCount} operation${methodCount === 1 ? "" : "s"}`,
+        subtitle: `${operations.length} operation${operations.length === 1 ? "" : "s"}`,
         pointer,
         value: item,
         metadata: { path, webhook },
       });
       this.connect(parent, pathModel);
 
-      for (const [method, operation] of Object.entries(item)) {
-        if (!isHttpMethod(method) || !isRecord(operation)) continue;
+      for (const entry of operations) {
+        const operation = entry.value;
         const operationModel = this.create({
           kind: "operation",
-          title: method.toUpperCase(),
+          title: entry.displayMethod,
           subtitle: typeof operation.operationId === "string"
             ? operation.operationId
-            : getDescription(operation, method.toUpperCase()),
-          pointer: `${pointer}/${method}`,
+            : getDescription(operation, entry.displayMethod),
+          pointer: entry.pointer,
           value: operation,
           metadata: {
-            method: method.toUpperCase(),
+            method: entry.displayMethod,
             path,
             webhook,
             operationId: operation.operationId,
             deprecated: operation.deprecated === true,
             tags: operation.tags,
+            additionalOperation: entry.additional,
           },
         });
-        this.connect(pathModel, operationModel, "contains", method.toUpperCase());
-        this.createOperationChildren(operationModel, operation, item, `${pointer}/${method}`);
+        this.connect(pathModel, operationModel, "contains", entry.displayMethod);
+        this.createOperationChildren(operationModel, operation, item, entry.pointer, pointer);
+
+        if (Array.isArray(operation.tags)) {
+          for (const tagName of operation.tags) {
+            if (typeof tagName !== "string") continue;
+            const target = tagModels.get(tagName);
+            if (target) this.connect(operationModel, target, "tag", tagName);
+          }
+        }
       }
 
       if (Array.isArray(item.parameters)) {
@@ -446,6 +572,7 @@ class VisualDocumentBuilder {
     value: Record<string, unknown>,
     pathItem: Record<string, unknown>,
     base: string,
+    pathBase: string,
   ) {
     const commonParameters = Array.isArray(pathItem.parameters) ? pathItem.parameters : [];
     const ownParameters = Array.isArray(value.parameters) ? value.parameters : [];
@@ -459,7 +586,7 @@ class VisualDocumentBuilder {
       }
       const pointer = index < ownParameters.length
         ? `${base}/parameters/${index}`
-        : `${appendPointer(base.replace(/\/[^/]+$/, ""), "parameters")}/${index - ownParameters.length}`;
+        : `${pathBase}/parameters/${index - ownParameters.length}`;
       const model = this.createParameterModel(parameter, pointer, operation, "parameter");
       this.connect(operation, model, "parameter");
     });
@@ -534,8 +661,10 @@ class VisualDocumentBuilder {
       metadata: {
         name: record.name,
         in: record.in,
+        querystring: record.in === "querystring",
         required: record.required === true,
         deprecated: record.deprecated === true,
+        style: record.style,
       },
     });
   }
@@ -550,19 +679,168 @@ class VisualDocumentBuilder {
     for (const [name, value] of Object.entries(items)) {
       const kind = overrideKind ?? COMPONENT_KINDS[category] ?? "generic";
       const pointer = `${base}/${appendPointer("", name).replace(/^\//, "")}`;
+      const record = isRecord(value) ? value : {};
       const model = this.create({
         kind,
         title: name,
-        subtitle: kind === "schema" ? schemaType(value) : undefined,
+        subtitle: kind === "schema"
+          ? schemaType(value)
+          : kind === "mediaType"
+            ? mediaTypeSubtitle(value)
+            : kind === "securityScheme"
+              ? [record.type, record.scheme].filter(Boolean).join(" · ") || undefined
+              : kind === "response"
+                ? getDescription(record)
+                : undefined,
         pointer,
         value,
-        metadata: { componentName: name, category },
+        metadata: {
+          componentName: name,
+          category,
+          contentType: kind === "mediaType" ? name : undefined,
+          streaming: kind === "mediaType" ? isSequentialMediaType(name) || isRecord(record.itemSchema) : undefined,
+          deprecated: record.deprecated === true,
+          oauth2MetadataUrl: record.oauth2MetadataUrl,
+        },
       });
       this.connect(parent, model);
       if (kind === "securityScheme") {
         this.refIndex.set(`security-name:${name}`, model.id);
       }
       this.refIndex.set(pointer, model.id);
+    }
+  }
+
+  private createMediaTypeModel(
+    parent: VisualNodeModel,
+    contentType: string,
+    value: unknown,
+    pointer: string,
+    relation: RelationType,
+  ) {
+    const record = isRecord(value) ? value : {};
+    const streaming = isSequentialMediaType(contentType) || isRecord(record.itemSchema);
+    const model = this.create({
+      kind: "mediaType",
+      title: contentType,
+      subtitle: mediaTypeSubtitle(value),
+      pointer,
+      value,
+      metadata: {
+        contentType,
+        streaming,
+        reusable: typeof record.$ref === "string",
+      },
+    });
+    if (streaming) model.badges.push("stream");
+    this.connect(parent, model, relation, contentType);
+
+    if (typeof record.$ref === "string") {
+      const target = this.resolveReference(record.$ref, model);
+      if (target) this.connect(model, target, "ref", "$ref");
+    }
+    return model;
+  }
+
+  private createExampleModel(parent: VisualNodeModel, name: string, value: unknown, pointer: string) {
+    const record = isRecord(value) ? value : {};
+    const representation = ["dataValue", "serializedValue", "value", "externalValue"].find((key) => record[key] !== undefined);
+    const model = this.create({
+      kind: "example",
+      title: name,
+      subtitle: representation ? `${representation}: ${formatShortValue(record[representation])}` : getDescription(record),
+      pointer,
+      value,
+      metadata: {
+        exampleName: name,
+        representation,
+      },
+    });
+    this.connect(parent, model, "contains", "example");
+    return model;
+  }
+
+  private createExampleChildren(parent: VisualNodeModel, value: unknown, base: string) {
+    if (!isRecord(value)) return;
+    const examples = value.examples;
+    if (!isRecord(examples)) return;
+    for (const [name, example] of Object.entries(examples)) {
+      this.createExampleModel(
+        parent,
+        name,
+        example,
+        `${base}/examples/${appendPointer("", name).replace(/^\//, "")}`,
+      );
+    }
+  }
+
+  private createEncodingModel(
+    parent: VisualNodeModel,
+    title: string,
+    value: unknown,
+    pointer: string,
+    role: string,
+  ) {
+    const model = this.create({
+      kind: "generic",
+      title,
+      subtitle: isRecord(value) && typeof value.contentType === "string" ? value.contentType : undefined,
+      pointer,
+      value,
+      metadata: { encodingRole: role },
+    });
+    this.connect(parent, model, "contains", role);
+    return model;
+  }
+
+  private createEncodingChildren(model: VisualNodeModel) {
+    const value = model.value;
+    if (!isRecord(value)) return;
+
+    if (isRecord(value.headers)) {
+      for (const [name, header] of Object.entries(value.headers)) {
+        const child = this.createParameterModel(
+          header,
+          `${model.pointer}/headers/${appendPointer("", name).replace(/^\//, "")}`,
+          model,
+          "parameter",
+        );
+        this.connect(model, child, "parameter", name);
+      }
+    }
+
+    if (isRecord(value.encoding)) {
+      for (const [name, encoding] of Object.entries(value.encoding)) {
+        this.createEncodingModel(
+          model,
+          `Encoding: ${name}`,
+          encoding,
+          `${model.pointer}/encoding/${appendPointer("", name).replace(/^\//, "")}`,
+          `encoding:${name}`,
+        );
+      }
+    }
+
+    if (Array.isArray(value.prefixEncoding)) {
+      value.prefixEncoding.forEach((encoding, index) => {
+        this.createEncodingModel(
+          model,
+          `Prefix ${index}`,
+          encoding,
+          `${model.pointer}/prefixEncoding/${index}`,
+          `prefix:${index}`,
+        );
+      });
+    }
+
+    if (isRecord(value.itemEncoding)) {
+      this.createEncodingModel(
+        model,
+        "Item encoding",
+        value.itemEncoding,
+        `${model.pointer}/itemEncoding`,
+        "item",
+      );
     }
   }
 
@@ -603,6 +881,18 @@ class VisualDocumentBuilder {
             });
             this.connect(model, schema, "parameter");
           }
+          if (isRecord(value.content)) {
+            for (const [contentType, mediaType] of Object.entries(value.content)) {
+              this.createMediaTypeModel(
+                model,
+                contentType,
+                mediaType,
+                `${model.pointer}/content/${appendPointer("", contentType).replace(/^\//, "")}`,
+                "parameter",
+              );
+            }
+          }
+          this.createExampleChildren(model, value, model.pointer);
         }
         break;
       }
@@ -615,15 +905,13 @@ class VisualDocumentBuilder {
           }
           if (isRecord(value.content)) {
             for (const [contentType, mediaType] of Object.entries(value.content)) {
-              const child = this.create({
-                kind: "mediaType",
-                title: contentType,
-                subtitle: isRecord(mediaType) && isRecord(mediaType.schema) ? schemaType(mediaType.schema) : undefined,
-                pointer: `${model.pointer}/content/${appendPointer("", contentType).replace(/^\//, "")}`,
-                value: mediaType,
-                metadata: { contentType },
-              });
-              this.connect(model, child, model.kind === "response" ? "response" : "request");
+              this.createMediaTypeModel(
+                model,
+                contentType,
+                mediaType,
+                `${model.pointer}/content/${appendPointer("", contentType).replace(/^\//, "")}`,
+                model.kind === "response" ? "response" : "request",
+              );
             }
           }
           if (isRecord(value.schema)) {
@@ -651,6 +939,12 @@ class VisualDocumentBuilder {
         break;
       }
       case "mediaType": {
+        if (isRecord(value)) {
+          if (typeof value.$ref === "string") {
+            const target = this.resolveReference(value.$ref, model);
+            if (target) this.connect(model, target, "ref", "$ref");
+          }
+        }
         if (isRecord(value) && isRecord(value.schema)) {
           const relation: RelationType = model.pointer.includes("/responses/") ? "response" : "request";
           const child = this.create({
@@ -661,6 +955,22 @@ class VisualDocumentBuilder {
             value: value.schema,
           });
           this.connect(model, child, relation);
+        }
+        if (isRecord(value) && isRecord(value.itemSchema)) {
+          const relation: RelationType = model.pointer.includes("/responses/") ? "response" : "request";
+          const child = this.create({
+            kind: "schema",
+            title: "Item Schema",
+            subtitle: schemaType(value.itemSchema),
+            pointer: `${model.pointer}/itemSchema`,
+            value: value.itemSchema,
+            metadata: { itemSchema: true },
+          });
+          this.connect(model, child, relation, "itemSchema");
+        }
+        if (isRecord(value)) {
+          this.createEncodingChildren(model);
+          this.createExampleChildren(model, value, model.pointer);
         }
         break;
       }
@@ -680,6 +990,10 @@ class VisualDocumentBuilder {
       }
       case "generic":
       case "example": {
+        if (model.metadata.encodingRole !== undefined) {
+          this.createEncodingChildren(model);
+          break;
+        }
         if (!isRecord(value) && !Array.isArray(value)) break;
         const entries = Array.isArray(value)
           ? value.map((item, index) => [String(index), item] as const)
@@ -710,6 +1024,10 @@ class VisualDocumentBuilder {
       const target = this.resolveReference(value.$ref, model);
       if (target) this.connect(model, target, "ref", "$ref");
       return;
+    }
+
+    if (isRecord(value.discriminator)) {
+      this.connectDiscriminator(model, value.discriminator);
     }
 
     if (isRecord(value.properties)) {
@@ -813,19 +1131,64 @@ class VisualDocumentBuilder {
     }
   }
 
+  private connectDiscriminator(model: VisualNodeModel, discriminator: Record<string, unknown>) {
+    const mapping = isRecord(discriminator.mapping) ? discriminator.mapping : {};
+    const targets: Array<[string, string]> = Object.entries(mapping).map(([key, target]) => [
+      `mapping:${key}`,
+      typeof target === "string" ? target : "",
+    ]);
+    if (typeof discriminator.defaultMapping === "string") {
+      targets.push(["defaultMapping", discriminator.defaultMapping]);
+    }
+
+    for (const [label, targetValue] of targets) {
+      if (!targetValue) continue;
+      const target = this.resolveSchemaNameOrReference(targetValue);
+      if (target) this.connect(model, target, "ref", label);
+    }
+  }
+
+  private resolveSchemaNameOrReference(value: string) {
+    if (value.startsWith("#/")) return this.resolveInternalRef(value);
+    if (/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value) || value.startsWith("./") || value.startsWith("../")) {
+      const root = this.models.get("visualizer:root");
+      return root ? this.resolveReference(value, root) : undefined;
+    }
+
+    for (const base of ["#/components/schemas/", "#/definitions/"]) {
+      const pointer = `${base}${appendPointer("", value).replace(/^\//, "")}`;
+      const existingId = this.refIndex.get(pointer);
+      const existing = existingId ? this.models.get(existingId) : undefined;
+      if (existing) return existing;
+      if (valueAtPointer(this.raw, pointer) !== undefined) return this.resolveInternalRef(pointer);
+    }
+    return undefined;
+  }
+
   private resolveReference(reference: string, context: VisualNodeModel): VisualNodeModel | undefined {
     if (reference.startsWith("#/")) return this.resolveInternalRef(reference);
-    const id = `visualizer:external/${reference}`;
+    const resolvedReference = this.resolveExternalReference(reference);
+    const id = `visualizer:external/${resolvedReference}`;
     return this.create({
       id,
       kind: "externalRef",
-      title: reference,
+      title: resolvedReference,
       subtitle: "External reference",
-      pointer: reference,
-      value: { $ref: reference },
+      pointer: resolvedReference,
+      value: { $ref: resolvedReference, relativeReference: reference !== resolvedReference ? reference : undefined },
       metadata: { external: true },
-      });
+    });
     void context;
+  }
+
+  private resolveExternalReference(reference: string) {
+    const self = this.raw.$self;
+    if (typeof self !== "string" || !/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(self)) return reference;
+    try {
+      return new URL(reference, self).toString();
+    } catch {
+      return reference;
+    }
   }
 
   private resolveInternalRef(reference: string): VisualNodeModel | undefined {
@@ -893,7 +1256,19 @@ class VisualDocumentBuilder {
     const schemas = models.filter(
       (model) => model.kind === "schema" && (model.pointer.includes("schemas") || model.pointer.includes("definitions")),
     );
+    const mediaTypeModels = models.filter((model) => model.kind === "mediaType");
+    const streamingMediaKeys = new Set(
+      mediaTypeModels
+        .filter((model) => model.metadata.streaming === true)
+        .map((model) => {
+          const reference = isRecord(model.value) && typeof model.value.$ref === "string" ? model.value.$ref : "";
+          return reference || `${model.metadata.contentType ?? model.pointer}`;
+        }),
+    );
     const refs = countRefs(this.raw);
+    const unresolvedInternalRefs = new Set(
+      collectRefs(this.raw).filter((reference) => reference.startsWith("#/") && valueAtPointer(this.raw, reference) === undefined),
+    );
     const incomingSemanticEdges = [...this.edges.values()].filter((edge) => edge.relation !== "contains");
     const referencedSchemaIds = new Set(
       incomingSemanticEdges
@@ -911,8 +1286,12 @@ class VisualDocumentBuilder {
       operations: operations.length,
       webhooks: webhooks.length,
       schemas: schemas.length,
+      mediaTypes: mediaTypeModels.filter((model) => model.pointer.startsWith("#/components/mediaTypes/")).length,
+      additionalOperations: operations.filter((model) => model.metadata.additionalOperation === true).length,
+      streamingMediaTypes: streamingMediaKeys.size,
       refs: refs.internal + refs.external,
       externalRefs: refs.external,
+      unresolvedInternalRefs: unresolvedInternalRefs.size,
       deprecated: models.filter((model) => model.metadata.deprecated === true).length,
       orphanSchemas: schemas.filter((schema) => !referencedSchemaIds.has(schema.id)).length,
     };
@@ -923,6 +1302,24 @@ function getDescription(value: Record<string, unknown>, fallback?: string) {
   if (typeof value.summary === "string" && value.summary.trim()) return value.summary;
   if (typeof value.description === "string" && value.description.trim()) return value.description;
   return fallback;
+}
+
+function mediaTypeSubtitle(value: unknown) {
+  if (!isRecord(value)) return undefined;
+  if (typeof value.$ref === "string") return value.$ref;
+  if (isRecord(value.itemSchema)) return `item: ${schemaType(value.itemSchema)}`;
+  if (isRecord(value.schema)) return schemaType(value.schema);
+  return undefined;
+}
+
+function formatShortValue(value: unknown) {
+  if (value === undefined) return "—";
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch {
+    return String(value);
+  }
 }
 
 function getTitle(raw: Record<string, unknown>) {
@@ -959,7 +1356,8 @@ export function parseOpenApiSource(sourceText: string, fileName: string): ParseR
     if (typeof parsed.openapi === "string") {
       if (!SUPPORTED_OPENAPI_VERSION.test(parsed.openapi)) {
         return {
-          error: `Unsupported OpenAPI version \`${parsed.openapi}\`. Supported versions are OpenAPI 3.0.x and 3.1.x.`,
+          error:
+            `Unsupported OpenAPI version \`${parsed.openapi}\`. Supported versions are OpenAPI 3.0.x, 3.1.x, and 3.2.x.`,
         };
       }
     } else if (typeof parsed.swagger === "string") {

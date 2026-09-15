@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "verify": "node scripts/verify.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview"
   },

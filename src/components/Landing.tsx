@@ -27,8 +27,9 @@ const features = [
   },
   {
     icon: Layers,
-    title: "OpenAPI 2.0 → 3.1",
-    description: "Paths, webhooks, request bodies, responses, parameters, security schemes, and component definitions are normalized.",
+    title: "OpenAPI 2.0 → 3.2",
+    description:
+      "Paths, webhooks, QUERY and additional operations, streaming media types, hierarchical tags, security schemes, and components are normalized.",
   },
   {
     icon: ZoomIn,
@@ -73,7 +74,7 @@ export function Landing() {
       <section className="hero">
         <span className="hero-badge">
           <Sparkles size={15} />
-          OpenAPI 2.0 · 3.0 · 3.1
+          OpenAPI 2.0 · 3.0 · 3.1 · 3.2
         </span>
         <h1>
           Turn large OpenAPI YAML into an <em>explorable visual model</em>
@@ -117,7 +118,7 @@ export function Landing() {
           id="paste"
           value={pasted}
           spellCheck={false}
-          placeholder={"openapi: 3.1.0\ninfo:\n  title: My API\npaths:\n  /resources:\n    get: {}"}
+          placeholder={"openapi: 3.2.0\ninfo:\n  title: My API\npaths:\n  /resources:\n    get: {}"}
           onChange={(event) => setPasted(event.target.value)}
         />
         <button

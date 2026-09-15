@@ -24,6 +24,7 @@ export type RelationType =
   | "request"
   | "response"
   | "security"
+  | "tag"
   | "ref";
 
 export interface VisualNodeModel {
@@ -62,8 +63,12 @@ export interface DocumentStats {
   operations: number;
   webhooks: number;
   schemas: number;
+  mediaTypes: number;
+  additionalOperations: number;
+  streamingMediaTypes: number;
   refs: number;
   externalRefs: number;
+  unresolvedInternalRefs: number;
   deprecated: number;
   orphanSchemas: number;
 }

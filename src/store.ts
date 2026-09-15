@@ -117,14 +117,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   loadSample: () => {
-    const result = parseOpenApiSource(sampleOpenApi, "modern-petstore-3.1.openapi.yaml");
+    const result = parseOpenApiSource(sampleOpenApi, "modern-petstore-3.2.openapi.yaml");
     if (!result.document || result.error) {
       set({ parseError: result.error ?? "Unable to load sample." });
       return;
     }
     set({
       document: result.document,
-      fileName: "modern-petstore-3.1.openapi.yaml",
+      fileName: "modern-petstore-3.2.openapi.yaml",
       parseError: undefined,
       selectedId: "visualizer:root",
       expandedIds: initialExpanded(result.document),

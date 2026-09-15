@@ -46,6 +46,7 @@ export function App() {
                 <span className="legend-item response">response</span>
                 <span className="legend-item ref">$ref / schema</span>
                 <span className="legend-item security">security</span>
+                <span className="legend-item tag">tag</span>
               </div>
             </section>
             <InspectorPanel open={inspectorOpen} onToggle={toggleInspector} />

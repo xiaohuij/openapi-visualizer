@@ -3,7 +3,8 @@ import { Dog, Download, FileUp, Moon, RotateCcw, Search, Sun, Waypoints } from "
 import { useAppStore, type LayoutDirection } from "../store";
 import { cn } from "../lib/utils";
 
-const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"];
+const METHOD_ORDER = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD", "TRACE", "QUERY"];
+const BUILTIN_METHOD_CLASSES = ["get", "post", "put", "patch", "delete", "options", "head", "trace", "query"];
 
 async function readOpenApiFile(file: File) {
   const text = await file.text();
@@ -11,6 +12,11 @@ async function readOpenApiFile(file: File) {
   if (!loaded) {
     window.alert(useAppStore.getState().parseError);
   }
+}
+
+function methodClass(method: string) {
+  const normalized = method.toLowerCase();
+  return BUILTIN_METHOD_CLASSES.includes(normalized) ? normalized : "additional";
 }
 
 export function TopBar() {
@@ -33,6 +39,21 @@ export function TopBar() {
     const needle = query.trim().toLowerCase();
     return document.searchRecords.filter((record) => record.text.includes(needle)).slice(0, 14);
   }, [document, query]);
+  const methods = useMemo(() => {
+    if (!document) return [] as string[];
+    const discovered = new Set<string>();
+    for (const model of document.models.values()) {
+      if (model.kind === "operation" && typeof model.metadata.method === "string") discovered.add(model.metadata.method);
+    }
+    return [...discovered].sort((a, b) => {
+      const left = METHOD_ORDER.indexOf(a.toUpperCase());
+      const right = METHOD_ORDER.indexOf(b.toUpperCase());
+      if (left !== -1 || right !== -1) {
+        return (left === -1 ? METHOD_ORDER.length : left) - (right === -1 ? METHOD_ORDER.length : right);
+      }
+      return a.localeCompare(b);
+    });
+  }, [document]);
 
   return (
     <header className="top-bar">
@@ -99,11 +120,12 @@ export function TopBar() {
         </div>
 
         <div className="method-filter">
-          {METHODS.map((method) => (
+          {methods.map((method) => (
             <button
               key={method}
-              className={cn(method.toLowerCase(), methodFilter.includes(method) && "active")}
+              className={cn(methodClass(method), methodFilter.includes(method) && "active")}
               onClick={() => toggleMethodFilter(method)}
+              title={METHOD_ORDER.includes(method.toUpperCase()) ? `Filter ${method} operations` : `Additional ${method} operations`}
             >
               {method}
             </button>
@@ -165,7 +187,7 @@ export function TopBar() {
         <button
           className="ghost-button"
           onClick={loadSample}
-          title="Use the bundled Modern Petstore OpenAPI 3.1 sample"
+          title="Use the bundled Modern Petstore OpenAPI 3.2 sample"
         >
           <Dog size={15} />
           PetStore
