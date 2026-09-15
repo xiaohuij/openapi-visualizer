@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { parseOpenApiSource } from "./lib/visualizer";
 import { sampleOpenApi } from "./lib/sample";
-import { creditCardYaml } from "./lib/demo";
 import type { VisualDocument } from "./types";
 
 export type LayoutDirection = "LR" | "TB";
@@ -28,7 +27,6 @@ interface AppState {
   theme: Theme;
   loadSource: (source: string, fileName: string) => boolean;
   loadSample: () => void;
-  loadCreditCardDemo: () => void;
   selectNode: (id: string) => void;
   toggleNode: (id: string) => void;
   revealNode: (id: string) => void;
@@ -119,33 +117,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   loadSample: () => {
-    const result = parseOpenApiSource(sampleOpenApi, "enterprise-customer-offer-api.yaml");
+    const result = parseOpenApiSource(sampleOpenApi, "modern-petstore-3.1.openapi.yaml");
     if (!result.document || result.error) {
       set({ parseError: result.error ?? "Unable to load sample." });
       return;
     }
     set({
       document: result.document,
-      fileName: "enterprise-customer-offer-api.yaml",
-      parseError: undefined,
-      selectedId: "visualizer:root",
-      expandedIds: initialExpanded(result.document),
-      methodFilter: [],
-      fitNonce: get().fitNonce + 1,
-      focusNodeId: "visualizer:root",
-      isSample: true,
-    });
-  },
-
-  loadCreditCardDemo: () => {
-    const result = parseOpenApiSource(creditCardYaml, "CreditCard.yaml");
-    if (!result.document || result.error) {
-      set({ parseError: result.error ?? "Unable to load CreditCard.yaml." });
-      return;
-    }
-    set({
-      document: result.document,
-      fileName: "CreditCard.yaml",
+      fileName: "modern-petstore-3.1.openapi.yaml",
       parseError: undefined,
       selectedId: "visualizer:root",
       expandedIds: initialExpanded(result.document),

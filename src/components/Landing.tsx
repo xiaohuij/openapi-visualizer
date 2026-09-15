@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import {
   AlertTriangle,
-  CreditCard,
+  Dog,
   FileUp,
   GitBranch,
   Layers,
@@ -45,7 +45,6 @@ const features = [
 export function Landing() {
   const loadSource = useAppStore((state) => state.loadSource);
   const loadSample = useAppStore((state) => state.loadSample);
-  const loadCreditCardDemo = useAppStore((state) => state.loadCreditCardDemo);
   const parseError = useAppStore((state) => state.parseError);
   const [pasted, setPasted] = useState("");
   const [dragging, setDragging] = useState(false);
@@ -89,12 +88,8 @@ export function Landing() {
             Open YAML / JSON
           </button>
           <button className="ghost-button large" onClick={loadSample}>
-            <Sparkles size={17} />
-            Try enterprise sample
-          </button>
-          <button className="ghost-button large" onClick={loadCreditCardDemo}>
-            <CreditCard size={17} />
-            Analyze CreditCard.yaml
+            <Dog size={17} />
+            Try PetStore sample
           </button>
         </div>
         <input
@@ -122,7 +117,7 @@ export function Landing() {
           id="paste"
           value={pasted}
           spellCheck={false}
-          placeholder={"openapi: 3.1.0\ninfo:\n  title: My enterprise API\npaths:\n  /resources:\n    get: {}"}
+          placeholder={"openapi: 3.1.0\ninfo:\n  title: My API\npaths:\n  /resources:\n    get: {}"}
           onChange={(event) => setPasted(event.target.value)}
         />
         <button

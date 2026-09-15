@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { VisualizerCanvas } from "./components/VisualizerCanvas";
 import { InspectorPanel } from "./components/InspectorPanel";
 import { Landing } from "./components/Landing";
@@ -9,6 +9,10 @@ import { useAppStore } from "./store";
 export function App() {
   const document = useAppStore((state) => state.document);
   const theme = useAppStore((state) => state.theme);
+  const [inspectorOpen, setInspectorOpen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("openapi-visualizer-inspector") === "expanded";
+  });
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -16,12 +20,23 @@ export function App() {
     root.style.colorScheme = theme;
   }, [theme]);
 
+  useEffect(() => {
+    window.localStorage.setItem(
+      "openapi-visualizer-inspector",
+      inspectorOpen ? "expanded" : "collapsed",
+    );
+  }, [inspectorOpen]);
+
+  const toggleInspector = useCallback(() => {
+    setInspectorOpen((open) => !open);
+  }, []);
+
   return (
     <div className="app-shell">
       <TopBar />
       {document ? (
         <>
-          <main className="workspace">
+          <main className={`workspace${inspectorOpen ? " inspector-open" : ""}`}>
             <section className="visualizer-shell">
               <VisualizerCanvas />
               <div className="legend">
@@ -33,7 +48,7 @@ export function App() {
                 <span className="legend-item security">security</span>
               </div>
             </section>
-            <InspectorPanel />
+            <InspectorPanel open={inspectorOpen} onToggle={toggleInspector} />
           </main>
           <StatusBar />
         </>

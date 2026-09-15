@@ -13,6 +13,8 @@ import { isRecord, schemaType } from "./utils";
 
 const HTTP_METHODS = ["get", "put", "post", "delete", "options", "head", "patch", "trace"] as const;
 type HttpMethod = (typeof HTTP_METHODS)[number];
+const SUPPORTED_OPENAPI_VERSION = /^3\.(?:0|1)\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const SUPPORTED_SWAGGER_VERSION = /^2\.0\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
 const COMPONENT_KINDS: Record<string, VisualNodeKind> = {
   schemas: "schema",
@@ -954,7 +956,19 @@ export function parseOpenApiSource(sourceText: string, fileName: string): ParseR
     if (!isRecord(parsed)) {
       return { error: "The file must contain a YAML mapping or JSON object at the top level." };
     }
-    if (typeof parsed.openapi !== "string" && typeof parsed.swagger !== "string") {
+    if (typeof parsed.openapi === "string") {
+      if (!SUPPORTED_OPENAPI_VERSION.test(parsed.openapi)) {
+        return {
+          error: `Unsupported OpenAPI version \`${parsed.openapi}\`. Supported versions are OpenAPI 3.0.x and 3.1.x.`,
+        };
+      }
+    } else if (typeof parsed.swagger === "string") {
+      if (!SUPPORTED_SWAGGER_VERSION.test(parsed.swagger)) {
+        return {
+          error: `Unsupported Swagger version \`${parsed.swagger}\`. Supported version is Swagger 2.0.x.`,
+        };
+      }
+    } else {
       return { error: "Missing required `openapi` or `swagger` version field." };
     }
     if (!isRecord(parsed.paths) && !isRecord(parsed.webhooks) && !isRecord(parsed.components)) {

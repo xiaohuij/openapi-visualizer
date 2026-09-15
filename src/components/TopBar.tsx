@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { CreditCard, Download, FileUp, Moon, RotateCcw, Search, Sun, Waypoints } from "lucide-react";
+import { Dog, Download, FileUp, Moon, RotateCcw, Search, Sun, Waypoints } from "lucide-react";
 import { useAppStore, type LayoutDirection } from "../store";
 import { cn } from "../lib/utils";
 
@@ -24,7 +24,7 @@ export function TopBar() {
   const revealNode = useAppStore((state) => state.revealNode);
   const theme = useAppStore((state) => state.theme);
   const toggleTheme = useAppStore((state) => state.toggleTheme);
-  const loadCreditCardDemo = useAppStore((state) => state.loadCreditCardDemo);
+  const loadSample = useAppStore((state) => state.loadSample);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -162,9 +162,13 @@ export function TopBar() {
           <FileUp size={15} />
           Open file
         </button>
-        <button className="ghost-button" onClick={loadCreditCardDemo} title="Use the local BIAN CreditCard.yaml demo">
-          <CreditCard size={15} />
-          CreditCard
+        <button
+          className="ghost-button"
+          onClick={loadSample}
+          title="Use the bundled Modern Petstore OpenAPI 3.1 sample"
+        >
+          <Dog size={15} />
+          PetStore
         </button>
         <input
           ref={inputRef}

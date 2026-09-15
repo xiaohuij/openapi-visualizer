@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import YAML from "yaml";
 import {
   ArrowDownLeft,
   ArrowUpRight,
   Braces,
+  ChevronLeft,
+  ChevronRight,
   ClipboardCopy,
   FileJson2,
   Layers,
@@ -133,10 +135,17 @@ function inspectorIcon(model: VisualNodeModel) {
   }
 }
 
-export function InspectorPanel() {
+interface InspectorPanelProps {
+  open: boolean;
+  onToggle: () => void;
+}
+
+export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
   const document = useAppStore((state) => state.document);
   const selectedId = useAppStore((state) => state.selectedId);
   const revealNode = useAppStore((state) => state.revealNode);
+  const panelRef = useRef<HTMLElement | null>(null);
+  const toggleRef = useRef<HTMLButtonElement | null>(null);
   const [tab, setTab] = useState<InspectorTab>("definition");
   const [copied, setCopied] = useState(false);
   const model = document?.models.get(selectedId);
@@ -158,13 +167,64 @@ export function InspectorPanel() {
     };
   }, [document, model]);
 
-  if (!document || !model) return <aside className="inspector empty">No selection</aside>;
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      const shouldMoveFocus = panelRef.current?.contains(window.document.activeElement);
+      onToggle();
+      if (shouldMoveFocus) toggleRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, onToggle]);
+
+  const toggleInspector = () => {
+    const shouldMoveFocus = open && panelRef.current?.contains(window.document.activeElement);
+    onToggle();
+    if (shouldMoveFocus) toggleRef.current?.focus();
+  };
+  const toggleLabel = model
+    ? open
+      ? `Collapse details for ${model.title}`
+      : `Expand details for ${model.title}`
+    : open
+      ? "Collapse details"
+      : "Expand details";
+  const toggleButton = (
+    <button
+      ref={toggleRef}
+      type="button"
+      className="inspector-toggle"
+      aria-expanded={open}
+      aria-controls="inspector-panel"
+      aria-label={toggleLabel}
+      title={toggleLabel}
+      onClick={toggleInspector}
+    >
+      {open ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+      <span className="inspector-toggle-label">Details</span>
+    </button>
+  );
+
+  if (!document || !model) {
+    return (
+      <section className={`inspector-drawer${open ? " open" : ""}`} aria-label="Details drawer">
+        {toggleButton}
+        <aside id="inspector-panel" ref={panelRef} className="inspector empty" aria-hidden={!open}>
+          No selection
+        </aside>
+      </section>
+    );
+  }
   const Icon = inspectorIcon(model);
   const value = model.value;
   const record = isRecord(value) ? value : {};
 
   return (
-    <aside className="inspector">
+    <section className={`inspector-drawer${open ? " open" : ""}`} aria-label="Details drawer">
+      {toggleButton}
+      <aside id="inspector-panel" ref={panelRef} className="inspector" aria-hidden={!open}>
       <header className="inspector-header">
         <div className="inspector-title">
           <span className="inspector-icon">
@@ -396,6 +456,7 @@ export function InspectorPanel() {
         ) : null}
       </div>
     </aside>
+    </section>
   );
 }
 

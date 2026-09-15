@@ -10,8 +10,8 @@ inspect its exact definition, and follow shared `$ref` relationships across oper
 
 - **Progressive exploration:** root → paths/webhooks → operations → parameters/request/response → schemas → fields.
 - **Relationship model, not just a tree:** shared schemas, parameters, responses, request bodies, and security schemes remain reusable nodes.
-- **Standard formats:** supports OpenAPI 3.1, 3.0.x, and Swagger 2.0 YAML or JSON.
-- **Rich inspector:** operation parameters, request bodies, response models, schema constraints, source YAML, and incoming/outgoing relationships.
+- **Standard formats:** supports OpenAPI 3.1.x, 3.0.x, and Swagger 2.0 YAML or JSON.
+- **Collapsible inspector:** operation parameters, request bodies, response models, schema constraints, source YAML, and incoming/outgoing relationships in a right-edge drawer.
 - **Search:** global search across endpoint paths, operation IDs, schemas, fields, descriptions, component names, and pointers.
 - **Light and dark themes:** follows the system preference by default and remembers your manual choice.
 - **Anchor camera:** expanding or collapsing a node keeps that node centered after the visualization is relaid out.
@@ -55,25 +55,30 @@ Preview the production build:
 npm run preview
 ```
 
-## Local demo
+## Bundled sample
 
-The repository includes `CreditCard.yaml`, a large, standards-compliant OpenAPI 3.0.1 document. On the landing page,
-choose **Analyze CreditCard.yaml** to load it without any network request.
+The landing-page PetStore sample is adapted from the public
+[Modern Petstore 3.2 specification](https://petstoreapi.com/v1/specs/modern-petstore-3.2.openapi.yaml). It is stored as
+an OpenAPI 3.1.0 document so it remains within this project's current supported format. The adaptation removes
+OpenAPI 3.2-only surfaces (`QUERY`, reusable media types, hierarchical tag fields, and `$self`) while retaining the
+PetStore paths, schemas, security schemes, servers, and webhooks.
 
 Current normalized size:
 
 ```text
-28 paths
-28 operations
-237 schemas
-1,162 references
-1,702 visual nodes
-2,863 relationship edges
+12 normalized path nodes
+18 operations
+2 webhooks
+15 normalized schema nodes
+119 references
+490 visual nodes
+620 relationship edges
 ```
 
 ## Interaction
 
-- Click a node to select it and open its details in the right inspector.
+- Click a node to select it. The right drawer is collapsed by default to preserve a full-width canvas; use its attached edge button to pull the details open.
+- Press `Escape` to close the details drawer. Your expanded/collapsed preference is remembered for the next visit.
 - Double-click a node to expand or collapse its next layer.
 - Press `+N` on a node to expand it and see how many children are available.
 - Expanding or collapsing a node keeps the operated node centered after relayout.

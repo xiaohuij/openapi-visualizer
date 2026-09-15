@@ -45,24 +45,24 @@ interface VisualNodeData {
 }
 
 const nodeSizes: Record<VisualNodeKind, { width: number; height: number }> = {
-  root: { width: 300, height: 112 },
-  group: { width: 250, height: 96 },
-  path: { width: 280, height: 100 },
-  webhook: { width: 280, height: 100 },
-  operation: { width: 300, height: 116 },
-  parameter: { width: 250, height: 94 },
-  requestBody: { width: 250, height: 94 },
-  response: { width: 250, height: 94 },
-  mediaType: { width: 250, height: 94 },
-  schema: { width: 280, height: 108 },
-  property: { width: 250, height: 94 },
-  schemaVariant: { width: 260, height: 94 },
-  securityScheme: { width: 260, height: 94 },
-  server: { width: 280, height: 90 },
-  tag: { width: 240, height: 84 },
-  example: { width: 240, height: 84 },
-  externalRef: { width: 300, height: 90 },
-  generic: { width: 250, height: 88 },
+  root: { width: 276, height: 98 },
+  group: { width: 232, height: 86 },
+  path: { width: 260, height: 89 },
+  webhook: { width: 260, height: 89 },
+  operation: { width: 280, height: 101 },
+  parameter: { width: 232, height: 83 },
+  requestBody: { width: 232, height: 83 },
+  response: { width: 232, height: 83 },
+  mediaType: { width: 232, height: 83 },
+  schema: { width: 260, height: 95 },
+  property: { width: 232, height: 83 },
+  schemaVariant: { width: 240, height: 84 },
+  securityScheme: { width: 240, height: 84 },
+  server: { width: 258, height: 81 },
+  tag: { width: 224, height: 77 },
+  example: { width: 224, height: 77 },
+  externalRef: { width: 278, height: 82 },
+  generic: { width: 232, height: 79 },
 };
 
 function iconFor(kind: VisualNodeKind) {
@@ -126,7 +126,7 @@ function VisualNodeCard({ data }: NodeProps) {
       <Handle type="target" position={Position.Top} id="top" />
       <div className="visual-node-header">
         <span className="visual-node-icon">
-          <Icon size={16} strokeWidth={2} />
+          <Icon size={14} strokeWidth={2} />
         </span>
         <div className="visual-node-copy">
           <strong title={model.title}>{model.title}</strong>
@@ -172,10 +172,10 @@ function layoutNodes(nodes: Node[], edges: Edge[], direction: "LR" | "TB") {
   layoutModel.setDefaultEdgeLabel(() => ({}));
   layoutModel.setGraph({
     rankdir: direction,
-    nodesep: direction === "LR" ? 40 : 30,
-    ranksep: direction === "LR" ? 90 : 75,
-    marginx: 40,
-    marginy: 40,
+    nodesep: direction === "LR" ? 34 : 26,
+    ranksep: direction === "LR" ? 78 : 66,
+    marginx: 36,
+    marginy: 36,
     ranker: "network-simplex",
   });
 
