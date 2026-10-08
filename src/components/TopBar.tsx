@@ -1,18 +1,12 @@
 import { useMemo, useRef, useState } from "react";
 import { Dog, Download, FileUp, Moon, RotateCcw, Search, Sun, Waypoints } from "lucide-react";
-import { useAppStore, type LayoutDirection } from "../store";
 import { cn } from "../lib/utils";
+import { useAppStore, type LayoutDirection } from "../store";
+import { loadArazzoSample, loadOpenApiSample, loadWorkspaceFile } from "../workflow/load";
+import { useWorkflowStore } from "../workflow/store";
 
 const METHOD_ORDER = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD", "TRACE", "QUERY"];
 const BUILTIN_METHOD_CLASSES = ["get", "post", "put", "patch", "delete", "options", "head", "trace", "query"];
-
-async function readOpenApiFile(file: File) {
-  const text = await file.text();
-  const loaded = useAppStore.getState().loadSource(text, file.name);
-  if (!loaded) {
-    window.alert(useAppStore.getState().parseError);
-  }
-}
 
 function methodClass(method: string) {
   const normalized = method.toLowerCase();
@@ -31,19 +25,28 @@ export function TopBar() {
   const theme = useAppStore((state) => state.theme);
   const toggleTheme = useAppStore((state) => state.toggleTheme);
   const loadSample = useAppStore((state) => state.loadSample);
+  const surface = useWorkflowStore((state) => state.surface);
+  const registry = useWorkflowStore((state) => state.registry);
+  const workflowRevision = useWorkflowStore((state) => state.revision);
+  const setSurface = useWorkflowStore((state) => state.setSurface);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  void workflowRevision;
+  const hasArazzoDocument = registry.listArazzo().length > 0;
 
   const results = useMemo(() => {
-    if (!document || query.trim().length < 2) return [];
+    if (surface !== "api" || !document || query.trim().length < 2) return [];
     const needle = query.trim().toLowerCase();
     return document.searchRecords.filter((record) => record.text.includes(needle)).slice(0, 14);
-  }, [document, query]);
+  }, [surface, document, query]);
+
   const methods = useMemo(() => {
-    if (!document) return [] as string[];
+    if (surface !== "api" || !document) return [] as string[];
     const discovered = new Set<string>();
     for (const model of document.models.values()) {
-      if (model.kind === "operation" && typeof model.metadata.method === "string") discovered.add(model.metadata.method);
+      if (model.kind === "operation" && typeof model.metadata.method === "string") {
+        discovered.add(model.metadata.method);
+      }
     }
     return [...discovered].sort((a, b) => {
       const left = METHOD_ORDER.indexOf(a.toUpperCase());
@@ -53,7 +56,7 @@ export function TopBar() {
       }
       return a.localeCompare(b);
     });
-  }, [document]);
+  }, [surface, document]);
 
   return (
     <header className="top-bar">
@@ -63,69 +66,104 @@ export function TopBar() {
         </span>
         <div>
           <strong>OpenAPI Visualizer</strong>
-          <span>{fileName ?? "No document loaded"}</span>
+          <span>{surface === "workflow" ? "Workflow Studio" : fileName ?? "No document loaded"}</span>
         </div>
       </div>
 
-      <div className="search-wrap">
-        <Search size={16} />
-        <input
-          value={query}
-          placeholder="Search endpoints, schemas, fields, descriptions…"
-          onChange={(event) => setQuery(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && results[0]) {
-              revealNode(results[0].id);
-              setQuery("");
-              inputRef.current?.blur();
-            }
-            if (event.key === "Escape") {
-              setQuery("");
-              inputRef.current?.blur();
-            }
-          }}
-        />
-        {query.trim().length >= 2 ? (
-          <div className="search-results">
-            {results.length === 0 ? <div className="search-empty">No matches</div> : null}
-            {results.map((result) => (
-              <button
-                key={result.id}
-                onClick={() => {
-                  revealNode(result.id);
-                  setQuery("");
-                }}
-              >
-                <strong>{result.title}</strong>
-                <span>{result.subtitle ?? result.kind}</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </div>
+      {surface === "api" ? (
+        <div className="search-wrap">
+          <Search size={16} />
+          <input
+            value={query}
+            placeholder="Search endpoints, schemas, fields, descriptions…"
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && results[0]) {
+                revealNode(results[0].id);
+                setQuery("");
+                inputRef.current?.blur();
+              }
+              if (event.key === "Escape") {
+                setQuery("");
+                inputRef.current?.blur();
+              }
+            }}
+          />
+          {query.trim().length >= 2 ? (
+            <div className="search-results">
+              {results.length === 0 ? <div className="search-empty">No matches</div> : null}
+              {results.map((result) => (
+                <button
+                  key={result.id}
+                  onClick={() => {
+                    revealNode(result.id);
+                    setQuery("");
+                  }}
+                >
+                  <strong>{result.title}</strong>
+                  <span>{result.subtitle ?? result.kind}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <div className="workflow-top-status" role="status">
+          Local Arazzo workspace · {registry.list().length} documents
+        </div>
+      )}
 
       <div className="toolbar-groups">
-        <div className="segmented">
+        <div className="segmented surface-switch" role="group" aria-label="Workspace surface">
+          <button
+            type="button"
+            className={surface === "api" ? "active" : ""}
+            onClick={() => setSurface("api")}
+            aria-pressed={surface === "api"}
+          >
+            API
+          </button>
+          <button
+            type="button"
+            className={surface === "workflow" ? "active" : ""}
+            onClick={() => setSurface("workflow")}
+            disabled={!hasArazzoDocument}
+            aria-pressed={surface === "workflow"}
+            title={hasArazzoDocument ? "Switch to Workflow Studio" : "Import an Arazzo document first"}
+          >
+            Flow
+          </button>
+        </div>
+
+        <div className={cn("segmented", surface !== "api" && "hidden")} aria-hidden={surface !== "api"}>
           {(["LR", "TB"] as LayoutDirection[]).map((item) => (
             <button
               key={item}
+              type="button"
               className={direction === item ? "active" : ""}
               onClick={() => setDirection(item)}
               title={item === "LR" ? "Left-to-right layout" : "Top-to-bottom layout"}
               aria-label={item === "LR" ? "Left-to-right layout" : "Top-to-bottom layout"}
+              tabIndex={surface === "api" ? 0 : -1}
             >
               {item === "LR" ? "↔" : "↕"}
             </button>
           ))}
         </div>
 
-        <div className="method-filter">
+        <div className={cn("method-filter", surface !== "api" && "hidden")} aria-hidden={surface !== "api"}>
           {methods.map((method) => (
             <button
               key={method}
+              type="button"
               className={cn(methodClass(method), methodFilter.includes(method) && "active")}
               onClick={() => toggleMethodFilter(method)}
-              title={METHOD_ORDER.includes(method.toUpperCase()) ? `Filter ${method} operations` : `Additional ${method} operations`}
+              title={
+                METHOD_ORDER.includes(method.toUpperCase())
+                  ? `Filter ${method} operations`
+                  : `Additional ${method} operations`
+              }
+              tabIndex={surface === "api" ? 0 : -1}
             >
               {method}
             </button>
@@ -133,8 +171,10 @@ export function TopBar() {
         </div>
 
         <button
+          type="button"
           className="ghost-button"
           onClick={resetVisualization}
+          hidden={surface !== "api"}
           title="Collapse the visualization to its first layer"
         >
           <RotateCcw size={15} />
@@ -142,6 +182,7 @@ export function TopBar() {
         </button>
 
         <button
+          type="button"
           className="ghost-button icon-button"
           onClick={toggleTheme}
           title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
@@ -151,8 +192,9 @@ export function TopBar() {
           {theme === "dark" ? "Light" : "Dark"}
         </button>
 
-        {document ? (
+        {document && surface === "api" ? (
           <button
+            type="button"
             className="ghost-button"
             onClick={() => {
               const visualModel = {
@@ -180,17 +222,30 @@ export function TopBar() {
           </button>
         ) : null}
 
-        <button className="primary-button" onClick={() => inputRef.current?.click()}>
+        <button type="button" className="primary-button" onClick={() => inputRef.current?.click()}>
           <FileUp size={15} />
           Open file
         </button>
         <button
+          type="button"
           className="ghost-button"
-          onClick={loadSample}
+          onClick={() => {
+            loadSample();
+            loadOpenApiSample();
+          }}
           title="Use the bundled Modern Petstore OpenAPI 3.2 sample"
         >
           <Dog size={15} />
           PetStore
+        </button>
+        <button
+          type="button"
+          className="ghost-button"
+          onClick={loadArazzoSample}
+          title="Load the bundled OpenAPI 3.2 sample and an Arazzo 1.1 workflow"
+        >
+          <Waypoints size={15} />
+          Pet flow
         </button>
         <input
           ref={inputRef}
@@ -199,7 +254,7 @@ export function TopBar() {
           hidden
           onChange={async (event) => {
             const file = event.target.files?.[0];
-            if (file) await readOpenApiFile(file);
+            if (file) await loadWorkspaceFile(file);
             event.target.value = "";
           }}
         />

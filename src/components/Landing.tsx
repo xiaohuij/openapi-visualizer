@@ -11,6 +11,13 @@ import {
   ZoomIn,
 } from "lucide-react";
 import { useAppStore } from "../store";
+import {
+  loadArazzoSample,
+  loadOpenApiSample,
+  loadWorkspaceFile,
+  loadWorkspaceSource,
+} from "../workflow/load";
+import { useWorkflowStore } from "../workflow/store";
 
 const features = [
   {
@@ -44,16 +51,15 @@ const features = [
 ];
 
 export function Landing() {
-  const loadSource = useAppStore((state) => state.loadSource);
   const loadSample = useAppStore((state) => state.loadSample);
   const parseError = useAppStore((state) => state.parseError);
+  const workflowError = useWorkflowStore((state) => state.lastError);
   const [pasted, setPasted] = useState("");
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function handleFile(file: File) {
-    const source = await file.text();
-    loadSource(source, file.name);
+    await loadWorkspaceFile(file);
   }
 
   return (
@@ -88,9 +94,19 @@ export function Landing() {
             <FileUp size={17} />
             Open YAML / JSON
           </button>
-          <button className="ghost-button large" onClick={loadSample}>
+          <button
+            className="ghost-button large"
+            onClick={() => {
+              loadSample();
+              loadOpenApiSample();
+            }}
+          >
             <Dog size={17} />
             Try PetStore sample
+          </button>
+          <button className="ghost-button large" onClick={loadArazzoSample}>
+            <Waypoints size={17} />
+            Try Arazzo workflow
           </button>
         </div>
         <input
@@ -104,16 +120,16 @@ export function Landing() {
             event.target.value = "";
           }}
         />
-        {parseError ? (
+        {parseError || workflowError ? (
           <div className="parse-error">
             <AlertTriangle size={16} />
-            {parseError}
+            {parseError ?? workflowError}
           </div>
         ) : null}
       </section>
 
       <section className="paste-panel">
-        <label htmlFor="paste">Or paste an OpenAPI document</label>
+        <label htmlFor="paste">Or paste an OpenAPI or Arazzo document</label>
         <textarea
           id="paste"
           value={pasted}
@@ -124,7 +140,7 @@ export function Landing() {
         <button
           className="primary-button"
           disabled={pasted.trim().length === 0}
-          onClick={() => loadSource(pasted, "pasted-openapi.yaml")}
+          onClick={() => loadWorkspaceSource(pasted, "pasted-document.yaml")}
         >
           Build visualization
         </button>

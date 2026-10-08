@@ -1,0 +1,71 @@
+import { GitBranch, Save } from "lucide-react";
+import { useEffect, useState } from "react";
+import type { ArazzoStep, ArazzoWorkflow } from "../../arazzo/types";
+import { useWorkflowStore } from "../../workflow/store";
+
+export function DependencyEditor({
+  workflow,
+  step,
+}: {
+  workflow: ArazzoWorkflow;
+  step: ArazzoStep;
+}) {
+  const editArazzoDocument = useWorkflowStore((state) => state.editArazzoDocument);
+  const [dependencies, setDependencies] = useState<string[]>(step.dependsOn ?? []);
+
+  useEffect(() => {
+    setDependencies(step.dependsOn ?? []);
+  }, [step.pointer, step.dependsOn]);
+
+  const candidates = workflow.steps.filter(candidate => candidate.stepId !== step.stepId);
+  const dirty = dependencies.join("\n") !== (step.dependsOn ?? []).join("\n");
+
+  return (
+    <form
+      className="dependency-editor"
+      onSubmit={event => {
+        event.preventDefault();
+        editArazzoDocument({
+          type: "arazzo/updateStep",
+          workflowId: workflow.workflowId,
+          stepId: step.stepId,
+          patch: { dependsOn: dependencies.length > 0 ? dependencies : null },
+        });
+      }}
+    >
+      <header>
+        <GitBranch size={15} />
+        <div>
+          <h3>DAG dependencies</h3>
+          <p>Select every prerequisite. Multiple prerequisites form a join.</p>
+        </div>
+      </header>
+
+      {candidates.length === 0 ? (
+        <p className="empty-note">This workflow has no other steps.</p>
+      ) : (
+        <div className="dependency-options" role="group" aria-label={`Dependencies for ${step.stepId}`}>
+          {candidates.map(candidate => (
+            <label key={candidate.stepId}>
+              <input
+                type="checkbox"
+                checked={dependencies.includes(candidate.stepId)}
+                onChange={event => {
+                  setDependencies(current => event.target.checked
+                    ? [...current, candidate.stepId]
+                    : current.filter(item => item !== candidate.stepId));
+                }}
+              />
+              <span>{candidate.stepId}</span>
+            </label>
+          ))}
+        </div>
+      )}
+
+      <button type="submit" className="primary-button" disabled={!dirty}>
+        <Save size={14} />
+        Apply dependencies
+      </button>
+    </form>
+  );
+}

@@ -18,6 +18,7 @@ import {
   Server as ServerIcon,
 } from "lucide-react";
 import { useAppStore } from "../store";
+import { AddStepPanel } from "./workflow/AddStepPanel";
 import type { VisualNodeModel } from "../types";
 import { isRecord, prettyPointer, schemaType, truncate } from "../lib/utils";
 
@@ -411,6 +412,7 @@ export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
                     ]}
                   />
                 </Section>
+                <AddStepPanel operation={model} />
                 <Section title="Parameters">
                   <DataTable
                     headers={["Name", "In", "Required", "Type", "Description"]}

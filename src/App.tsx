@@ -4,11 +4,14 @@ import { InspectorPanel } from "./components/InspectorPanel";
 import { Landing } from "./components/Landing";
 import { StatusBar } from "./components/StatusBar";
 import { TopBar } from "./components/TopBar";
+import { WorkflowStudio } from "./components/workflow/WorkflowStudio";
 import { useAppStore } from "./store";
+import { useWorkflowStore } from "./workflow/store";
 
 export function App() {
   const document = useAppStore((state) => state.document);
   const theme = useAppStore((state) => state.theme);
+  const surface = useWorkflowStore((state) => state.surface);
   const [inspectorOpen, setInspectorOpen] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem("openapi-visualizer-inspector") === "expanded";
@@ -30,6 +33,15 @@ export function App() {
   const toggleInspector = useCallback(() => {
     setInspectorOpen((open) => !open);
   }, []);
+
+  if (surface === "workflow") {
+    return (
+      <div className="app-shell">
+        <TopBar />
+        <WorkflowStudio />
+      </div>
+    );
+  }
 
   return (
     <div className="app-shell">
