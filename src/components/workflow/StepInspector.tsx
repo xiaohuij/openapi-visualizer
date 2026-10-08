@@ -18,7 +18,11 @@ function targetTitle(target: ArazzoStepTarget) {
     return target.operation.operationId ?? `${target.operation.method} ${target.operation.path}`;
   }
   if (target.kind === "workflow") return target.workflowId;
-  if (target.kind === "asyncapi-target") return target.reference;
+  if (target.kind === "asyncapi-target") {
+    return target.operation
+      ? `${target.operation.channelId} · ${target.operation.action}`
+      : target.reference;
+  }
   return "Unresolved target";
 }
 
@@ -38,11 +42,25 @@ function targetDetails(target: ArazzoStepTarget) {
     ] as const;
   }
   if (target.kind === "asyncapi-target") {
-    return [
+    const entries = [
       ["Source", target.sourceName],
       ["Reference", target.reference],
       ["Status", target.resolved ? "bound locally" : "unbound"],
-    ] as const;
+    ] as Array<readonly [string, unknown]>;
+    if (target.operation) {
+      entries.push(
+        ["Channel", target.operation.channelId],
+        ["Channel address", target.operation.channelAddress ?? "—"],
+        ["Action", target.operation.specificationVersion === "2"
+          ? `${target.operation.action} (${target.operation.normalizedAction})`
+          : target.operation.action],
+        ["Operation", target.operation.operationId ?? "—"],
+        ["Document", target.operation.documentId],
+        ["Messages", target.operation.messages.map(message => message.name).join(", ") || "—"],
+        ["Payload schema", target.operation.messages[0]?.payload ?? "—"],
+      );
+    }
+    return entries;
   }
   return [["Reason", target.reason]] as const;
 }

@@ -273,11 +273,14 @@ export function buildArazzoWorkflowGraph(resolution: ArazzoResolution): ArazzoWo
         addEdge(stepNode, existing ?? operationNode, "operation-call");
         stepNode.resolved = true;
       } else if (target.kind === "asyncapi-target") {
+        const title = target.operation
+          ? `${target.operation.channelId} · ${target.operation.action}`
+          : target.reference;
         const asyncTarget: ArazzoGraphNode = {
           id: `${document.documentId}::asyncapi-target::${target.sourceName}::${target.reference}`,
           kind: "asyncapi-target",
-          title: target.reference,
-          subtitle: `${target.resolved ? "bound" : "unbound"} · ${step.action ?? "async"}`,
+          title,
+          subtitle: `${target.resolved ? "bound" : "unbound"} · ${target.operation?.title ?? step.action ?? "async"}`,
           pointer: `${step.pointer}/${step.channelPath ? "channelPath" : "operationId"}`,
           documentId: document.documentId,
           resolved: target.resolved,

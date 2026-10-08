@@ -29,6 +29,9 @@ export type ArazzoExecutionTarget =
       sourceName: string;
       reference: string;
       bound: boolean;
+      operationId?: string;
+      channelId?: string;
+      action?: string;
     }
   | {
       kind: "unresolved";
@@ -130,6 +133,9 @@ function executionTarget(target: ArazzoStepTarget): ArazzoExecutionTarget {
       sourceName: target.sourceName,
       reference: target.reference,
       bound: target.resolved,
+      operationId: target.operation?.operationId,
+      channelId: target.operation?.channelId,
+      action: target.operation?.action,
     };
   }
   return { kind: "unresolved", reason: target.reason };

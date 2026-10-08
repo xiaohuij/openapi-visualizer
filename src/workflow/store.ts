@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { parseAsyncApiSource } from "../asyncapi/parser";
 import { parseArazzoSource } from "../arazzo/parser";
 import { parseOpenApiSource } from "../lib/visualizer";
 import {
@@ -24,6 +25,7 @@ interface WorkflowAppState {
   setSurface: (surface: WorkspaceSurface) => void;
   loadOpenApiSource: (source: string, fileName: string) => boolean;
   loadArazzoSource: (source: string, fileName: string) => boolean;
+  loadAsyncApiSource: (source: string, fileName: string) => boolean;
   removeDocument: (id: string) => void;
   setActiveArazzoDocument: (id: string) => void;
   bindSourceDescription: (arazzoDocumentId: string, sourceName: string, targetDocumentId: string) => boolean;
@@ -87,6 +89,24 @@ export const useWorkflowStore = create<WorkflowAppState>((set, get) => ({
       editorHistories,
     });
     return true;
+  },
+
+  loadAsyncApiSource: (source, fileName) => {
+    const result = parseAsyncApiSource(source, fileName);
+    if (!result.document || result.diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
+      set({
+        lastError: result.diagnostics.find((diagnostic) => diagnostic.severity === "error")?.message
+          ?? "Unable to parse AsyncAPI document.",
+      });
+      return false;
+    }
+
+    const entry = get().registry.upsertAsyncApi(result.document, result.diagnostics);
+    set({
+      revision: get().revision + 1,
+      lastError: undefined,
+    });
+    return entry.id !== undefined;
   },
 
   removeDocument: (id) => {

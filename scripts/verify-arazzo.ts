@@ -12,12 +12,15 @@ import {
   parseJsonPointer,
 } from "../src/arazzo/selectors";
 import { arazzoSourceSnippet } from "../src/arazzo/source-snippet";
-import { resolveArazzoDocument } from "../src/arazzo/semantic-resolver";
+import { parseSourceDescriptionPointer, resolveArazzoDocument } from "../src/arazzo/semantic-resolver";
 import { validateArazzoDocument } from "../src/arazzo/validator";
+import { parseAsyncApiSource } from "../src/asyncapi/parser";
 import { parseOpenApiSource } from "../src/lib/visualizer";
 import { sampleArazzo } from "../src/lib/sample-arazzo";
+import { sampleAsyncApi } from "../src/lib/sample-asyncapi";
 import { DocumentRegistry } from "../src/workflow/document-registry";
 import { OpenApiCapabilityIndex } from "../src/workflow/capability-index";
+import { AsyncApiCapabilityIndex } from "../src/workflow/asyncapi-capability-index";
 import { compileArazzoExecutionPlan } from "../src/workflow/execution-plan";
 import { executeArazzoMockPlan } from "../src/workflow/mock-execution";
 import { getArazzoRunnerAdapter } from "../src/workflow/runners";
@@ -649,6 +652,359 @@ assert.ok(createPet, "capability index should find operations by method and path
 assert.equal(createPet.requestBody?.required, true);
 assert.equal(createPet.requestBody?.content[0]?.contentType, "application/json");
 
+// --- Task 20: AsyncAPI capability index ---
+const asyncApiV3 = parseAsyncApiSource(
+  `asyncapi: 3.0.0
+info:
+  title: Order broker
+  version: 1.0.0
+channels:
+  placeOrder:
+    address: orders/place
+    title: Place order
+    messages:
+      place.message:
+        payload:
+          type: object
+          required:
+            - productId
+          properties:
+            productId:
+              type: string
+  orderConfirmation:
+    address: orders/confirm
+    messages:
+      confirm.message:
+        payload:
+          type: object
+          properties:
+            status:
+              type: string
+            orderId:
+              type: string
+operations:
+  placeOrder:
+    action: send
+    summary: Publish an order
+    channel:
+      $ref: '#/channels/placeOrder'
+    messages:
+      - $ref: '#/channels/placeOrder/messages/place.message'
+  confirmOrder:
+    action: receive
+    summary: Receive order confirmation
+    channel:
+      $ref: '#/channels/orderConfirmation'
+    messages:
+      - $ref: '#/channels/orderConfirmation/messages/confirm.message'
+`,
+  "orders-v3.asyncapi.yaml",
+);
+assert.deepEqual(asyncApiV3.diagnostics, [], "AsyncAPI 3.x fixture should parse without diagnostics");
+assert.ok(asyncApiV3.document, "AsyncAPI 3.x fixture should produce a document");
+assert.equal(asyncApiV3.document.specificationVersion, "3");
+assert.deepEqual(
+  asyncApiV3.document.operations.map(operation => [operation.operationId, operation.action, operation.channelId]),
+  [
+    ["placeOrder", "send", "placeOrder"],
+    ["confirmOrder", "receive", "orderConfirmation"],
+  ],
+);
+
+const asyncApiV2 = parseAsyncApiSource(
+  `asyncapi: 2.6.0
+info:
+  title: Legacy order broker
+  version: 1.0.0
+channels:
+  placeOrder:
+    publish:
+      operationId: placeOrder
+      message:
+        payload:
+          type: object
+  orderConfirmation:
+    subscribe:
+      operationId: confirmOrder
+      message:
+        payload:
+          type: object
+`,
+  "orders-v2.asyncapi.yaml",
+);
+assert.deepEqual(asyncApiV2.diagnostics, [], "AsyncAPI 2.x fixture should parse without diagnostics");
+assert.ok(asyncApiV2.document, "AsyncAPI 2.x fixture should produce a document");
+assert.equal(asyncApiV2.document.specificationVersion, "2");
+assert.deepEqual(
+  asyncApiV2.document.operations.map(operation => [operation.operationId, operation.action, operation.channelId]),
+  [
+    ["placeOrder", "publish", "placeOrder"],
+    ["confirmOrder", "subscribe", "orderConfirmation"],
+  ],
+);
+
+const asyncApiRegistry = new DocumentRegistry();
+const asyncV3Entry = asyncApiRegistry.upsertAsyncApi(asyncApiV3.document, asyncApiV3.diagnostics);
+const asyncV2Entry = asyncApiRegistry.upsertAsyncApi(asyncApiV2.document, asyncApiV2.diagnostics);
+assert.equal(asyncApiRegistry.listAsyncApi().length, 2, "AsyncAPI documents should coexist in the registry");
+const asyncApiIndex = new AsyncApiCapabilityIndex(asyncApiRegistry.listAsyncApi());
+
+const placeOrderByChannel = asyncApiIndex.findByChannelAction("placeOrder", "send", asyncV3Entry.id);
+assert.ok(placeOrderByChannel, "AsyncAPI index should find operations by channel and send action");
+assert.equal(placeOrderByChannel.normalizedAction, "send");
+assert.equal(placeOrderByChannel.channelAddress, "orders/place");
+assert.equal(placeOrderByChannel.messages.length, 1);
+assert.deepEqual(
+  placeOrderByChannel.messages[0]?.value,
+  { payload: { type: "object", required: ["productId"], properties: { productId: { type: "string" } } } },
+  "local message $ref targets should resolve within the same AsyncAPI document",
+);
+
+const confirmOrderById = asyncApiIndex.findByOperationId("confirmOrder", asyncV3Entry.id)[0];
+assert.ok(confirmOrderById, "AsyncAPI index should find operations by operationId");
+assert.equal(confirmOrderById.pointer, "#/operations/confirmOrder");
+
+const v2Confirm = asyncApiIndex.findByOperationId("confirmOrder", asyncV2Entry.id)[0];
+assert.ok(v2Confirm, "AsyncAPI 2.x operationIds should be indexed");
+assert.equal(v2Confirm.action, "subscribe");
+assert.equal(v2Confirm.normalizedAction, "receive");
+assert.ok(
+  asyncApiIndex.findByChannelAction("orderConfirmation", "receive", asyncV2Entry.id),
+  "send/receive lookups should match legacy publish/subscribe declarations",
+);
+
+// --- Task 21: operationPath resolution ---
+const dotPointer = parseSourceDescriptionPointer("$sourceDescriptions.catalog.paths./pets/{petId}.patch");
+assert.deepEqual(dotPointer, {
+  sourceName: "catalog",
+  container: "paths",
+  pointer: "/paths/~1pets~1{petId}/patch",
+  segments: ["/pets/{petId}", "patch"],
+  path: "/pets/{petId}",
+  method: "patch",
+});
+const urlPointer = parseSourceDescriptionPointer("{$sourceDescriptions.catalog.url}#/paths/~1pets~1{petId}/patch");
+assert.equal(urlPointer?.sourceName, "catalog");
+assert.equal(urlPointer?.method, "patch");
+assert.equal(urlPointer?.path, "/pets/{petId}");
+assert.equal(urlPointer?.pointer, "/paths/~1pets~1{petId}/patch");
+
+const hooksApi = parseOpenApiSource(
+  `openapi: 3.2.0
+info:
+  title: Webhook API
+  version: 1.0.0
+webhooks:
+  newPet:
+    post:
+      operationId: newPetEvent
+      responses:
+        '200':
+          description: OK
+`,
+  "hooks-api.yaml",
+);
+assert.ok(hooksApi.document, "OpenAPI webhook fixture should parse");
+
+const pathArazzo = parseArazzoSource(
+  `arazzo: 1.1.0
+info:
+  title: Path targets
+  version: 1.0.0
+sourceDescriptions:
+  - name: catalog
+    type: openapi
+    url: catalog-api.yaml
+  - name: hooks
+    type: openapi
+    url: hooks-api.yaml
+  - name: orders
+    type: asyncapi
+    url: orders-v3.asyncapi.yaml
+workflows:
+  - workflowId: pathTargets
+    steps:
+      - stepId: dotList
+        operationPath: $sourceDescriptions.catalog.paths./pets.get
+      - stepId: pointerUpdate
+        operationPath: '{$sourceDescriptions.catalog.url}#/paths/~1pets~1{petId}/patch'
+      - stepId: webhookPost
+        operationPath: $sourceDescriptions.hooks.webhooks.newPet.post
+      - stepId: asyncSend
+        operationPath: $sourceDescriptions.orders.channels.placeOrder.send
+      - stepId: asyncReceiveChannel
+        channelPath: '{$sourceDescriptions.orders.url}#/channels/orderConfirmation'
+        action: receive
+      - stepId: asyncByOperationId
+        operationId: $sourceDescriptions.orders.confirmOrder
+        action: receive
+        dependsOn:
+          - asyncReceiveChannel
+`,
+  "path-targets.arazzo.yaml",
+);
+assert.ok(pathArazzo.document, "operationPath fixture should parse");
+assert.deepEqual(
+  validateArazzoDocument(pathArazzo.document).filter(diagnostic => diagnostic.severity === "error"),
+  [],
+  "valid operationPath and channelPath expressions should pass validation",
+);
+
+const pathRegistry = new DocumentRegistry();
+const pathCatalogEntry = pathRegistry.upsertOpenApi(catalogApi.document!);
+const pathHooksEntry = pathRegistry.upsertOpenApi(hooksApi.document!);
+const pathOrdersEntry = pathRegistry.upsertAsyncApi(asyncApiV3.document!, asyncApiV3.diagnostics);
+const pathArazzoEntry = pathRegistry.upsertArazzo(pathArazzo.document!, pathArazzo.diagnostics);
+assert.ok(pathRegistry.bindSourceDescription(pathArazzoEntry.id, "catalog", pathCatalogEntry.id));
+assert.ok(pathRegistry.bindSourceDescription(pathArazzoEntry.id, "hooks", pathHooksEntry.id));
+assert.ok(pathRegistry.bindSourceDescription(pathArazzoEntry.id, "orders", pathOrdersEntry.id));
+
+const pathResolution = resolveArazzoDocument(
+  pathArazzo.document!,
+  pathRegistry,
+  new OpenApiCapabilityIndex(pathRegistry.listOpenApi()),
+  asyncApiIndex,
+);
+assert.deepEqual(pathResolution.diagnostics, [], "bound operationPath targets should resolve without diagnostics");
+const pathSteps = pathResolution.workflows[0]?.steps ?? [];
+assert.equal(pathSteps.length, 6);
+assert.equal(pathSteps[0]?.target.kind, "openapi-operation");
+if (pathSteps[0]?.target.kind === "openapi-operation") {
+  assert.equal(pathSteps[0].target.operation.method.toLowerCase(), "get");
+  assert.equal(pathSteps[0].target.operation.path, "/pets");
+}
+assert.equal(pathSteps[1]?.target.kind, "openapi-operation");
+if (pathSteps[1]?.target.kind === "openapi-operation") {
+  assert.equal(pathSteps[1].target.operation.method.toLowerCase(), "patch");
+  assert.equal(pathSteps[1].target.operation.path, "/pets/{petId}");
+}
+assert.equal(pathSteps[2]?.target.kind, "openapi-operation");
+if (pathSteps[2]?.target.kind === "openapi-operation") {
+  assert.equal(pathSteps[2].target.operation.webhook, true);
+  assert.equal(pathSteps[2].target.operation.operationId, "newPetEvent");
+}
+assert.equal(pathSteps[3]?.target.kind, "asyncapi-target");
+if (pathSteps[3]?.target.kind === "asyncapi-target") {
+  assert.equal(pathSteps[3].target.resolved, true);
+  assert.equal(pathSteps[3].target.operation?.channelId, "placeOrder");
+  assert.equal(pathSteps[3].target.operation?.action, "send");
+}
+assert.equal(pathSteps[4]?.target.kind, "asyncapi-target");
+if (pathSteps[4]?.target.kind === "asyncapi-target") {
+  assert.equal(pathSteps[4].target.resolved, true);
+  assert.equal(pathSteps[4].target.operation?.channelId, "orderConfirmation");
+  assert.equal(pathSteps[4].target.operation?.normalizedAction, "receive");
+}
+assert.equal(pathSteps[5]?.target.kind, "asyncapi-target");
+if (pathSteps[5]?.target.kind === "asyncapi-target") {
+  assert.equal(pathSteps[5].target.operation?.operationId, "confirmOrder");
+}
+
+const pathGraph = buildArazzoWorkflowGraph(pathResolution);
+assert.ok(
+  pathGraph.nodes.some(node => node.kind === "asyncapi-target" && node.title === "placeOrder · send"),
+  "resolved async graph nodes should describe their channel and action",
+);
+const pathPlan = compileArazzoExecutionPlan(pathResolution);
+assert.deepEqual(pathPlan.unresolvedTargets, [], "bound async targets should not be listed as unresolved");
+assert.equal(pathPlan.workflows[0]?.steps[4]?.target.kind, "asyncapi-target");
+if (pathPlan.workflows[0]?.steps[4]?.target.kind === "asyncapi-target") {
+  assert.equal(pathPlan.workflows[0].steps[4].target.channelId, "orderConfirmation");
+  assert.equal(pathPlan.workflows[0].steps[4].target.action, "receive");
+}
+
+const invalidPathArazzo = parseArazzoSource(
+  `arazzo: 1.1.0
+info:
+  title: Invalid path targets
+  version: 1.0.0
+sourceDescriptions:
+  - name: catalog
+    type: openapi
+    url: catalog-api.yaml
+workflows:
+  - workflowId: broken
+    steps:
+      - stepId: relativePath
+        operationPath: catalog-api.yaml#/paths/~1pets/get
+      - stepId: missingMethod
+        operationPath: $sourceDescriptions.catalog.paths./pets
+`,
+  "invalid-paths.arazzo.yaml",
+);
+assert.ok(invalidPathArazzo.document, "invalid operationPath fixture should parse structurally");
+const invalidPathDiagnostics = validateArazzoDocument(invalidPathArazzo.document);
+for (const code of ["ARAZZO_OPERATION_PATH_INVALID", "ARAZZO_OPERATION_PATH_METHOD_REQUIRED"]) {
+  assert.ok(
+    invalidPathDiagnostics.some(diagnostic => diagnostic.code === code),
+    `operationPath validator should report ${code}`,
+  );
+}
+
+const workflowAsyncStore = useWorkflowStore.getState();
+assert.ok(
+  workflowAsyncStore.loadAsyncApiSource(asyncApiV3.document!.sourceText, "orders-v3.asyncapi.yaml"),
+  "workspace store should load AsyncAPI documents",
+);
+assert.ok(
+  workflowAsyncStore.loadArazzoSource(pathArazzo.document!.sourceText, "path-targets.arazzo.yaml"),
+  "workspace store should load the operationPath Arazzo fixture",
+);
+const storeArazzoId = useWorkflowStore.getState().activeArazzoDocumentId!;
+const storeAsyncEntry = useWorkflowStore.getState().registry.listAsyncApi()[0];
+assert.ok(storeAsyncEntry, "loaded AsyncAPI document should appear in the workspace registry");
+assert.equal(
+  useWorkflowStore.getState().registry.getBinding(storeArazzoId, "orders"),
+  undefined,
+  "async source starts unbound",
+);
+assert.ok(
+  useWorkflowStore.getState().bindSourceDescription(storeArazzoId, "orders", storeAsyncEntry.id),
+  "workspace store should bind AsyncAPI source descriptions to local documents",
+);
+assert.ok(
+  useWorkflowStore.getState().loadOpenApiSource(catalogApi.document!.sourceText, "catalog-api.yaml"),
+  "catalog fixture should load into the workspace store",
+);
+const storeOpenApiEntry = useWorkflowStore.getState().registry.listOpenApi().find(
+  entry => entry.fileName === "catalog-api.yaml",
+);
+assert.ok(storeOpenApiEntry, "catalog fixture should be available through the workspace store");
+assert.ok(
+  useWorkflowStore.getState().bindSourceDescription(storeArazzoId, "catalog", storeOpenApiEntry.id),
+  "OpenAPI source binding should work alongside AsyncAPI sources",
+);
+assert.ok(
+  useWorkflowStore.getState().loadOpenApiSource(hooksApi.document!.sourceText, "hooks-api.yaml"),
+  "webhook fixture should load into the workspace store",
+);
+const storeHooksEntry = useWorkflowStore.getState().registry.listOpenApi().find(
+  entry => entry.fileName === "hooks-api.yaml",
+);
+assert.ok(storeHooksEntry, "webhook fixture should be registered");
+assert.ok(
+  useWorkflowStore.getState().bindSourceDescription(storeArazzoId, "hooks", storeHooksEntry.id),
+  "webhook source binding should work through the workspace store",
+);
+const storeArazzoEntry = useWorkflowStore.getState().registry.get(storeArazzoId);
+assert.ok(storeArazzoEntry?.kind === "arazzo" && storeArazzoEntry.document);
+const storeResolution = resolveArazzoDocument(
+  storeArazzoEntry.document,
+  useWorkflowStore.getState().registry,
+  new OpenApiCapabilityIndex(useWorkflowStore.getState().registry.listOpenApi()),
+  new AsyncApiCapabilityIndex(useWorkflowStore.getState().registry.listAsyncApi()),
+);
+assert.equal(
+  storeResolution.diagnostics.filter(diagnostic => diagnostic.severity === "error").length,
+  0,
+  "workspace-bound operationPath workflow should resolve without errors",
+);
+assert.equal(
+  storeResolution.workflows[0]?.steps.filter(step => step.target.kind === "asyncapi-target" && step.target.resolved).length,
+  3,
+  "all async steps should resolve through workspace bindings",
+);
+
 const workspaceStore = useWorkflowStore.getState();
 assert.ok(workspaceStore.loadOpenApiSource(catalogApi.document!.sourceText, "catalog-api.yaml"));
 assert.ok(workspaceStore.loadArazzoSource(validArazzo, "pet-workflow.arazzo.yaml"));
@@ -696,21 +1052,48 @@ const bundledOpenApi = parseOpenApiSource(
 );
 assert.ok(bundledOpenApi.document, "bundled OpenAPI sample should parse");
 sampleRegistry.upsertOpenApi(bundledOpenApi.document);
+const bundledAsyncApi = parseAsyncApiSource(sampleAsyncApi, "sample-pet-events.asyncapi.yaml");
+assert.deepEqual(
+  bundledAsyncApi.diagnostics,
+  [],
+  "bundled AsyncAPI sample should parse without diagnostics",
+);
+assert.ok(bundledAsyncApi.document, "bundled AsyncAPI sample should produce a document");
+const sampleAsyncEntry = sampleRegistry.upsertAsyncApi(bundledAsyncApi.document, bundledAsyncApi.diagnostics);
 const sampleArazzoEntry = sampleRegistry.upsertArazzo(bundledSample.document, bundledSample.diagnostics);
 sampleRegistry.bindSourceDescription(
   sampleArazzoEntry.id,
   "petstore",
   "openapi:modern-petstore-3.2.openapi.yaml",
 );
+assert.ok(
+  sampleRegistry.bindSourceDescription(sampleArazzoEntry.id, "events", sampleAsyncEntry.id),
+  "bundled AsyncAPI sample should bind to the bundled Arazzo sample",
+);
 const sampleResolution = resolveArazzoDocument(
   bundledSample.document,
   sampleRegistry,
   new OpenApiCapabilityIndex(sampleRegistry.listOpenApi()),
+  new AsyncApiCapabilityIndex(sampleRegistry.listAsyncApi()),
 );
 assert.deepEqual(
   sampleResolution.diagnostics,
   [],
   "bundled Arazzo sample should resolve against the bundled OpenAPI sample",
+);
+assert.equal(
+  sampleResolution.workflows[1]?.steps[1]?.target.kind,
+  "asyncapi-target",
+  "bundled sample should model the adoption confirmation asynchronously",
+);
+if (sampleResolution.workflows[1]?.steps[1]?.target.kind === "asyncapi-target") {
+  assert.equal(sampleResolution.workflows[1].steps[1].target.resolved, true);
+  assert.equal(sampleResolution.workflows[1].steps[1].target.operation?.channelId, "adoptionConfirmed");
+}
+assert.equal(
+  sampleResolution.workflows[0]?.steps[1]?.target.kind,
+  "openapi-operation",
+  "bundled sample should resolve the JSON Pointer operationPath form",
 );
 
 const swaggerApi = parseOpenApiSource(
@@ -1158,5 +1541,5 @@ for (const code of [
 }
 
 console.log(
-  "Arazzo verification passed: parsing, registry, capability index, semantic resolution, control-flow validation, workflow graph construction, source snippets, editor commands, serialization, operation-to-step authoring, mapping edits, runtime expressions/selectors, workflow composition, async DAG modeling, static execution plans, mock execution, and runner adapters.",
+  "Arazzo verification passed: parsing, registry, OpenAPI/AsyncAPI capability indexes, operationPath and channelPath resolution, control-flow validation, workflow graph construction, source snippets, editor commands, serialization, operation-to-step authoring, mapping edits, runtime expressions/selectors, workflow composition, async DAG modeling, static execution plans, mock execution, and runner adapters.",
 );

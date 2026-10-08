@@ -156,6 +156,7 @@ export class OpenApiCapabilityIndex {
   private readonly byOperationId = new Map<string, OpenApiOperationCapability[]>();
   private readonly byDocumentAndOperationId = new Map<string, OpenApiOperationCapability[]>();
   private readonly byDocumentMethodPath = new Map<string, OpenApiOperationCapability>();
+  private readonly byPointer = new Map<string, OpenApiOperationCapability>();
 
   constructor(documents: readonly OpenApiWorkspaceDocument[]) {
     this.operations = documents.flatMap(operationCapabilities);
@@ -176,6 +177,7 @@ export class OpenApiCapabilityIndex {
         `${operation.documentId}|${operation.method.toUpperCase()}|${operation.path}`,
         operation,
       );
+      this.byPointer.set(`${operation.documentId}|${operation.pointer}`, operation);
     }
   }
 
@@ -189,6 +191,10 @@ export class OpenApiCapabilityIndex {
 
   findByMethodPath(method: string, path: string, documentId: string) {
     return this.byDocumentMethodPath.get(`${documentId}|${method.toUpperCase()}|${path}`);
+  }
+
+  findByPointer(pointer: string, documentId: string) {
+    return this.byPointer.get(`${documentId}|${pointer}`);
   }
 
   listDocument(documentId: string) {

@@ -2,7 +2,7 @@
 
 Tasks are intentionally split into increments that keep the application
 buildable and verifiable. The current implementation batch covers Task 0 through
-Task 19.
+Task 21.
 
 ## Milestone 1 — Read-only Workflow Studio
 
@@ -364,6 +364,63 @@ user-provided data.
 - [x] The UI provides an in-browser mock context editor and result list.
 - [x] No network request is issued by mock execution.
 - [x] Success, failure, runtime-expression, selector, action, and async-timeout fixtures are verified.
+- [x] `npm run build` and `npm run verify` pass.
+
+## Feature-completion order
+
+The follow-up improvements are prioritized below. “Feature value” means the
+number of real workflow-authoring and comprehension scenarios unlocked. Manual
+verification comes first so functionality is proven before test infrastructure
+is built; automated browser E2E therefore moves to the end of the sequence.
+
+1. **AsyncAPI capability index** — turn async steps from visible, mockable nodes
+   into schema-aware channel/message operations.
+2. **OperationPath resolution** — support the standard `operationPath` target
+   form and improve compatibility with externally authored Arazzo documents.
+3. **Full RFC 9535 JSONPath** — expand selectors and success criteria beyond the
+current core subset.
+4. **Arazzo JSON Schema structural validation** — close structural edge cases
+that the hand-written validator intentionally does not yet cover.
+5. **XPath selectors** — complete the remaining standard selector family after
+JSONPath is robust.
+6. **Bundle code-splitting** — reduce initial JavaScript cost without changing
+product behavior.
+7. **Automated browser E2E** — once the functionality is validated, protect the
+full import → bind → graph → inspect → mock → preview path from regressions.
+
+## Milestone 6 — Source description compatibility
+
+### Task 20: Build the AsyncAPI capability index
+
+Make AsyncAPI sources schema-aware instead of treating every async step as an
+opaque reference.
+
+**Acceptance criteria**
+
+- [x] AsyncAPI 2.x channel `publish`/`subscribe` operations are indexed.
+- [x] AsyncAPI 3.x root `operations` and their channel bindings are indexed.
+- [x] Operations are indexed by operationId, channel + action, and JSON Pointer.
+- [x] Channel messages, payload schemas, and local message `$ref` targets are retained.
+- [x] Local AsyncAPI documents can be imported and bound to Arazzo source descriptions.
+- [x] Async step targets expose channel, action, and message metadata to the UI.
+- [x] Remote references are not fetched.
+- [x] AsyncAPI 2.x and 3.x fixtures are exercised by verification.
+- [x] `npm run build` and `npm run verify` pass.
+
+### Task 21: Implement OperationPath resolution
+
+Resolve the standard `operationPath` target form in addition to `operationId`.
+
+**Acceptance criteria**
+
+- [x] Dot-form expressions (`$sourceDescriptions.<name>.paths.<path>.<method>`) resolve.
+- [x] JSON-Pointer form expressions (`{$sourceDescriptions.<name>.url}#/paths/~1pets/get`) resolve.
+- [x] OpenAPI path and webhook targets resolve to indexed operations.
+- [x] AsyncAPI channel targets resolve through the AsyncAPI capability index.
+- [x] `channelPath` accepts both expression forms and resolves bound AsyncAPI channels.
+- [x] Unknown sources and operations produce actionable diagnostics.
+- [x] Invalid `operationPath` values are rejected by the validator.
+- [x] Both forms are exercised by verification.
 - [x] `npm run build` and `npm run verify` pass.
 
 ## Milestone 5 — Real execution adapters

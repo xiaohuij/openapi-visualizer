@@ -1,6 +1,7 @@
 import YAML from "yaml";
 import { sampleOpenApi } from "../lib/sample";
 import { sampleArazzo } from "../lib/sample-arazzo";
+import { sampleAsyncApi } from "../lib/sample-asyncapi";
 import { useAppStore } from "../store";
 import { useWorkflowStore } from "./store";
 
@@ -18,7 +19,25 @@ function detectArazzo(source: string, fileName: string) {
   }
 }
 
+function detectAsyncApi(source: string, fileName: string) {
+  if (/asyncapi/i.test(fileName)) return true;
+  try {
+    const root = YAML.parse(source);
+    return isRecord(root) && typeof root.asyncapi === "string";
+  } catch {
+    return false;
+  }
+}
+
 export function loadWorkspaceSource(source: string, fileName: string) {
+  if (detectAsyncApi(source, fileName)) {
+    const asyncLoaded = useWorkflowStore.getState().loadAsyncApiSource(source, fileName);
+    if (!asyncLoaded) {
+      window.alert(useWorkflowStore.getState().lastError);
+    }
+    return asyncLoaded;
+  }
+
   if (detectArazzo(source, fileName)) {
     const workflowLoaded = useWorkflowStore.getState().loadArazzoSource(source, fileName);
     if (!workflowLoaded) {
@@ -49,13 +68,22 @@ export function loadOpenApiSample() {
 export function loadArazzoSample() {
   loadOpenApiSample();
   const workflowStore = useWorkflowStore.getState();
+  if (!workflowStore.loadAsyncApiSource(sampleAsyncApi, "sample-pet-events.asyncapi.yaml")) return false;
   if (!workflowStore.loadArazzoSource(sampleArazzo, "sample-pet-workflow.arazzo.yaml")) return false;
   const arazzoId = useWorkflowStore.getState().activeArazzoDocumentId;
-  return arazzoId
+  const eventsBound = arazzoId
+    ? useWorkflowStore.getState().bindSourceDescription(
+      arazzoId,
+      "events",
+      "asyncapi:sample-pet-events.asyncapi.yaml",
+    )
+    : false;
+  const petstoreBound = arazzoId
     ? useWorkflowStore.getState().bindSourceDescription(
       arazzoId,
       "petstore",
       "openapi:modern-petstore-3.2.openapi.yaml",
     )
     : false;
+  return eventsBound && petstoreBound;
 }

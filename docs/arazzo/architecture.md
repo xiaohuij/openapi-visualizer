@@ -163,10 +163,16 @@ Runner adapter
 - `runtime-expression/` — parsing, validation, and evaluation.
 - `selectors/` — JSONPointer, JSONPath, and eventually XPath support.
 
+### `src/asyncapi`
+
+- `types.ts` — AsyncAPI 2.x/3.x read model for channels, operations, and messages.
+- `parser.ts` — AsyncAPI YAML/JSON parsing with local message `$ref` resolution.
+
 ### `src/workflow`
 
 - `document-registry.ts` — locally imported OpenAPI/Arazzo/AsyncAPI documents.
-- `capability-index.ts` — operation, parameter, request, and response index.
+- `capability-index.ts` — OpenAPI operation, parameter, request, and response index.
+- `asyncapi-capability-index.ts` — AsyncAPI operation, channel/action, message, and pointer index.
 - `commands.ts` — editor commands and future undo/redo boundaries.
 - `editor-state.ts` — transient editing state.
 - `store.ts` — Zustand workflow workspace state.

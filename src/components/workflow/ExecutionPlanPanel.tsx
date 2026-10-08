@@ -6,7 +6,12 @@ function targetLabel(step: ArazzoExecutionStep) {
   const target = step.target;
   if (target.kind === "openapi-operation") return `${target.method.toUpperCase()} ${target.path}`;
   if (target.kind === "workflow") return `workflow · ${target.workflowId}`;
-  if (target.kind === "asyncapi-target") return `${target.bound ? "async" : "unbound async"} · ${target.reference}`;
+  if (target.kind === "asyncapi-target") {
+    if (target.channelId) {
+      return `${target.bound ? "async" : "unbound async"} · ${target.action ?? "?"} ${target.channelId}`;
+    }
+    return `${target.bound ? "async" : "unbound async"} · ${target.reference}`;
+  }
   return target.reason;
 }
 

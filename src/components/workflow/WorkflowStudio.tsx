@@ -9,6 +9,7 @@ import { serializeArazzoDocument, type ArazzoSerializationFormat } from "../../a
 import { WorkflowCanvas } from "./WorkflowCanvas";
 import { cn } from "../../lib/utils";
 import { OpenApiCapabilityIndex } from "../../workflow/capability-index";
+import { AsyncApiCapabilityIndex } from "../../workflow/asyncapi-capability-index";
 import { compileArazzoExecutionPlan } from "../../workflow/execution-plan";
 import type { ArazzoWorkspaceDocument, WorkspaceDocument } from "../../workflow/document-registry";
 import { useWorkflowStore } from "../../workflow/store";
@@ -22,6 +23,7 @@ function documentTitle(document: WorkspaceDocument) {
     const root = [...document.document.models.values()].find((model) => model.id === "visualizer:root");
     return root?.title ?? document.fileName;
   }
+  if (document.kind === "asyncapi") return document.document.info.title;
   return document.document?.info.title ?? document.fileName;
 }
 
@@ -79,30 +81,26 @@ function SourceDescriptionBindings({ document }: { document: ArazzoWorkspaceDocu
               <strong>{source.name}</strong>
               <span>{source.type}</span>
             </div>
-            {source.type === "asyncapi" ? (
-              <p>AsyncAPI local documents are supported in a later increment.</p>
-            ) : (
-              <label>
-                <span>Bound local document</span>
-                <select
-                  value={binding?.targetDocumentId ?? ""}
-                  onChange={(event) => {
-                    if (event.target.value) {
-                      bindSourceDescription(document.id, source.name, event.target.value);
-                    } else {
-                      unbindSourceDescription(document.id, source.name);
-                    }
-                  }}
-                >
-                  <option value="">Not bound</option>
-                  {candidates.map((candidate) => (
-                    <option key={candidate.id} value={candidate.id}>
-                      {documentTitle(candidate)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
+            <label>
+              <span>Bound local document</span>
+              <select
+                value={binding?.targetDocumentId ?? ""}
+                onChange={(event) => {
+                  if (event.target.value) {
+                    bindSourceDescription(document.id, source.name, event.target.value);
+                  } else {
+                    unbindSourceDescription(document.id, source.name);
+                  }
+                }}
+              >
+                <option value="">Not bound</option>
+                {candidates.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>
+                    {documentTitle(candidate)}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
         );
       })}
@@ -115,6 +113,9 @@ function targetLabel(target: ArazzoStepTarget | undefined) {
   if (target.kind === "openapi-operation") return `resolved · ${target.operation.method} ${target.operation.path}`;
   if (target.kind === "workflow") return `resolved workflow · ${target.workflowId}`;
   if (target.kind === "asyncapi-target") {
+    if (target.operation) {
+      return `resolved async · ${target.operation.action} ${target.operation.channelId}`;
+    }
     return `${target.resolved ? "async target" : "unbound async target"} · ${target.reference}`;
   }
   return target.reason;
@@ -180,9 +181,17 @@ export function WorkflowStudio() {
     () => new OpenApiCapabilityIndex(registry.listOpenApi()),
     [registry, revision],
   );
+  const asyncApiCapabilityIndex = useMemo(
+    () => new AsyncApiCapabilityIndex(registry.listAsyncApi()),
+    [registry, revision],
+  );
   const resolution = useMemo(
-    () => (active?.document ? resolveArazzoDocument(active.document, registry, capabilityIndex) : undefined),
-    [active?.document, registry, capabilityIndex],
+    () => (
+      active?.document
+        ? resolveArazzoDocument(active.document, registry, capabilityIndex, asyncApiCapabilityIndex)
+        : undefined
+    ),
+    [active?.document, registry, capabilityIndex, asyncApiCapabilityIndex],
   );
   const executionPlan = useMemo(
     () => (resolution ? compileArazzoExecutionPlan(resolution) : undefined),
@@ -357,6 +366,10 @@ export function WorkflowStudio() {
                             <span>
                               {step.operationId
                                 ? `operation: ${step.operationId}`
+                                : step.operationPath
+                                  ? `operation path: ${step.operationPath}`
+                                  : step.channelPath
+                                    ? `channel: ${step.channelPath}`
                                 : step.workflowId
                                   ? `workflow: ${step.workflowId}`
                                   : "No target"}

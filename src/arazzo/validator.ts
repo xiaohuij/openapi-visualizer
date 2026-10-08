@@ -3,7 +3,10 @@ import {
   arazzoWarning,
   type ArazzoDiagnostic,
 } from "./diagnostics";
-import { parseSourceDescriptionExpression } from "./semantic-resolver";
+import {
+  parseSourceDescriptionExpression,
+  parseSourceDescriptionPointer,
+} from "./semantic-resolver";
 import type { ArazzoDocument, ArazzoStep, ArazzoWorkflow } from "./types";
 
 const SUCCESS_ACTION_TYPES = new Set(["proceed", "goto", "end"]);
@@ -121,16 +124,43 @@ function validateStep(
   }
 
   const targetExpression = parseSourceDescriptionExpression(step.channelPath ?? step.operationId ?? "");
-  const source = targetExpression
-    ? document.sourceDescriptions.find(item => item.name === targetExpression.sourceName)
+  const targetPointer = parseSourceDescriptionPointer(step.channelPath ?? step.operationPath ?? "");
+  const sourceName = targetExpression?.sourceName ?? targetPointer?.sourceName;
+  const source = sourceName
+    ? document.sourceDescriptions.find(item => item.name === sourceName)
     : undefined;
   const isAsyncStep = source?.type === "asyncapi" || step.channelPath !== undefined;
-  if (step.channelPath && !targetExpression) {
+  if (step.channelPath && !targetExpression && !targetPointer) {
     diagnostics.push(
       arazzoError(
         "ARAZZO_CHANNEL_TARGET_INVALID",
-        "channelPath must use a $sourceDescriptions runtime expression.",
+        "channelPath must use a $sourceDescriptions runtime expression with an AsyncAPI channel or operation pointer.",
         `${step.pointer}/channelPath`,
+        document.documentId,
+      ),
+    );
+  }
+  if (step.operationPath !== undefined && !targetPointer) {
+    diagnostics.push(
+      arazzoError(
+        "ARAZZO_OPERATION_PATH_INVALID",
+        "operationPath must use a $sourceDescriptions runtime expression with a paths, webhooks, channels, or operations pointer.",
+        `${step.pointer}/operationPath`,
+        document.documentId,
+      ),
+    );
+  }
+  if (
+    step.operationPath !== undefined
+    && targetPointer
+    && targetPointer.container === "paths"
+    && !targetPointer.method
+  ) {
+    diagnostics.push(
+      arazzoError(
+        "ARAZZO_OPERATION_PATH_METHOD_REQUIRED",
+        "OpenAPI operationPath targets must end with an HTTP method.",
+        `${step.pointer}/operationPath`,
         document.documentId,
       ),
     );
