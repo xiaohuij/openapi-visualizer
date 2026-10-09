@@ -109,11 +109,11 @@ assert.equal(
 );
 const jsonPath = parseJsonPath("$['pets'][0].name");
 assert.deepEqual(jsonPath.value, [
-  { type: "child", key: "pets" },
-  { type: "index", index: 0 },
-  { type: "child", key: "name" },
+  { type: "child", selectors: [{ kind: "name", name: "pets" }] },
+  { type: "child", selectors: [{ kind: "index", index: 0 }] },
+  { type: "child", selectors: [{ kind: "name", name: "name" }] },
 ]);
-assert.equal(parseJsonPath("$.pets[")?.error, "A JSONPath bracket is missing ].");
+assert.match(parseJsonPath("$.pets[")?.error ?? "", /A JSONPath bracket is missing \]/);
 assert.deepEqual(
   evaluateJsonPath({ pets: [{ name: "Rex" }] }, "$.pets[*].name").value,
   ["Rex"],
@@ -121,6 +121,76 @@ assert.deepEqual(
 assert.deepEqual(
   evaluateJsonPath({ nested: { pet: { id: 7 } }, other: { pet: { id: 8 } } }, "$..pet.id").value,
   [7, 8],
+);
+
+// --- Full RFC 9535 JSONPath coverage ---
+const selectorCatalog = {
+  store: { region: "cn-north", open: true, "weird'name": "escaped" },
+  maxPrice: 100,
+  pets: [
+    { id: 1, name: "Rex", species: "dog", price: 120, tags: ["big", "loud"] },
+    { id: 2, name: "Milo", species: "cat", price: 80, tags: ["quiet"] },
+    { id: 3, name: "Bella", species: "dog", price: 150, tags: [] },
+  ],
+  archived: { pets: [{ id: 9, name: "Old", species: "dog" }] },
+};
+
+const select = (path: string) => evaluateJsonPath(selectorCatalog, path).value;
+assert.deepEqual(select("$.pets[-1]"), [{ id: 3, name: "Bella", species: "dog", price: 150, tags: [] }], "negative indexes select from the end");
+assert.deepEqual(select("$.pets[1:].name"), ["Milo", "Bella"], "slices support open ends");
+assert.deepEqual(select("$.pets[:2].name"), ["Rex", "Milo"], "slices support open starts");
+assert.deepEqual(select("$.pets[::2].name"), ["Rex", "Bella"], "slices support steps");
+assert.deepEqual(select("$.pets[::-1].name"), ["Bella", "Milo", "Rex"], "negative steps reverse arrays");
+assert.deepEqual(select("$.pets[0,2].name"), ["Rex", "Bella"], "unions combine index selectors");
+assert.deepEqual(select("$.store['region','open']"), ["cn-north", true], "unions combine name selectors");
+assert.deepEqual(select("$..id"), [1, 2, 3, 9], "recursive descent visits nested containers");
+assert.deepEqual(select("$..tags[*]"), ["big", "loud", "quiet"], "recursive descent supports bracketed wildcards");
+assert.deepEqual(select("$.store['weird\\'name']"), ["escaped"], "quoted names support escapes");
+assert.deepEqual(
+  select("$.pets[ ? @.species == 'dog' ].name"),
+  ["Rex", "Bella"],
+  "equality filters tolerate inner whitespace",
+);
+assert.deepEqual(select("$.pets[?@.price > 100].name"), ["Rex", "Bella"], "order filters compare numbers");
+assert.deepEqual(
+  select("$.pets[?@.species == 'dog' && @.price < 130].name"),
+  ["Rex"],
+  "filters combine with &&",
+);
+assert.deepEqual(
+  select("$.pets[?@.species == 'cat' || @.id == 3].name"),
+  ["Milo", "Bella"],
+  "filters combine with ||",
+);
+assert.deepEqual(select("$.pets[?!(@.species == 'dog')].name"), ["Milo"], "filters support negation and parentheses");
+assert.deepEqual(select("$.pets[?@.name =~ /R.*/].name"), ["Rex"], "regex filters match substrings");
+assert.deepEqual(
+  select("$.pets[?@.price > $.maxPrice].name"),
+  ["Rex", "Bella"],
+  "filters can compare against root-relative paths",
+);
+assert.deepEqual(select("$.pets[?@.tags[0] == 'big'].name"), ["Rex"], "filter paths support nested indexes");
+assert.deepEqual(select("$.store[?@ == true]"), [true], "filters can compare the current node");
+assert.deepEqual(select("$.pets[?length(@.tags) > 1].name"), ["Rex"], "length() counts array members");
+assert.deepEqual(select("$.pets[?count(@.tags[*]) == 2].name"), ["Rex"], "count() counts selected nodes");
+assert.deepEqual(select("$.pets[?match(@.species, 'dog')].name"), ["Rex", "Bella"], "match() requires a full string match");
+assert.deepEqual(select("$.pets[?search(@.name, '^R')].name"), ["Rex"], "search() finds partial matches");
+assert.deepEqual(select("$.pets[?value(@.id) == 2].name"), ["Milo"], "value() extracts the first node");
+assert.deepEqual(select("$.pets[?length(@.missing) == 0]"), [], "missing function arguments produce Nothing");
+assert.match(
+  parseJsonPath("$.pets[?@.tags[*] == 'big']")?.error ?? "",
+  /Comparison operands must use singular queries/,
+  "non-singular comparison operands are rejected",
+);
+assert.match(
+  parseJsonPath("$.pets[?@.name =~ 'Rex']")?.error ?? "",
+  /right side of =~ must be a \/regex\/ literal/,
+  "regex comparisons require regex literals",
+);
+assert.match(
+  parseJsonPath("$.pets[0:3:0]")?.error ?? "",
+  /slice step cannot be zero/,
+  "zero slice steps are rejected",
 );
 assert.deepEqual(
   validateArazzoRuntimeExpressions(valid.document!),
@@ -1217,6 +1287,76 @@ const failedMockResult = executeArazzoMockPlan(mockPlan, {
 assert.equal(failedMockResult.workflows[0]?.steps[0]?.status, "failed");
 assert.equal(failedMockResult.workflows[0]?.steps[0]?.criteria[0]?.passed, false);
 
+const filterExecutionArazzo = parseArazzoSource(
+  `arazzo: 1.1.0
+info:
+  title: Filtered mock execution
+  version: 1.0.0
+sourceDescriptions:
+  - name: petstore
+    type: openapi
+    url: catalog-api.yaml
+workflows:
+  - workflowId: filterFlow
+    steps:
+      - stepId: search
+        operationId: listPets
+        successCriteria:
+          - type: jsonpath
+            context: $response.body
+            condition: $.pets[?@.status == 'available']
+        outputs:
+          availableNames:
+            type: jsonpath
+            context: $response.body
+            selector: $.pets[?@.status == 'available' && @.price < 100].name
+`,
+  "filter-execution.arazzo.yaml",
+);
+assert.ok(filterExecutionArazzo.document, "filter execution fixture should parse");
+assert.deepEqual(
+  validateArazzoRuntimeExpressions(filterExecutionArazzo.document).filter(diagnostic => diagnostic.severity === "error"),
+  [],
+  "filter selectors should pass runtime-expression validation",
+);
+const filterRegistry = new DocumentRegistry();
+const filterArazzoEntry = filterRegistry.upsertArazzo(filterExecutionArazzo.document, filterExecutionArazzo.diagnostics);
+filterRegistry.upsertOpenApi(catalogApi.document!);
+filterRegistry.bindSourceDescription(filterArazzoEntry.id, "petstore", "openapi:catalog-api.yaml");
+const filterPlan = compileArazzoExecutionPlan(
+  resolveArazzoDocument(
+    filterExecutionArazzo.document,
+    filterRegistry,
+    new OpenApiCapabilityIndex(filterRegistry.listOpenApi()),
+  ),
+);
+const filterPets = [
+  { name: "Rex", status: "available", price: 120 },
+  { name: "Milo", status: "available", price: 80 },
+  { name: "Burnt", status: "adopted", price: 60 },
+];
+const filterMockResult = executeArazzoMockPlan(filterPlan, {
+  inputs: {},
+  examples: {
+    search: { statusCode: 200, response: { body: { pets: filterPets } } },
+  },
+});
+assert.equal(filterMockResult.workflows[0]?.steps[0]?.status, "succeeded");
+assert.equal(filterMockResult.workflows[0]?.steps[0]?.criteria[0]?.passed, true);
+assert.deepEqual(
+  filterMockResult.workflows[0]?.steps[0]?.outputs.availableNames,
+  ["Milo"],
+  "filter output selectors should materialize through mock execution",
+);
+const filterFailureResult = executeArazzoMockPlan(filterPlan, {
+  inputs: {},
+  examples: {
+    search: { statusCode: 200, response: { body: { pets: [{ name: "Burnt", status: "adopted", price: 60 }] } } },
+  },
+});
+assert.equal(filterFailureResult.workflows[0]?.steps[0]?.status, "failed");
+assert.equal(filterFailureResult.workflows[0]?.steps[0]?.criteria[0]?.passed, false);
+
 const runnerMockContext = {
   inputs: { token: "runner-token" },
   examples: {
@@ -1541,5 +1681,5 @@ for (const code of [
 }
 
 console.log(
-  "Arazzo verification passed: parsing, registry, OpenAPI/AsyncAPI capability indexes, operationPath and channelPath resolution, control-flow validation, workflow graph construction, source snippets, editor commands, serialization, operation-to-step authoring, mapping edits, runtime expressions/selectors, workflow composition, async DAG modeling, static execution plans, mock execution, and runner adapters.",
+  "Arazzo verification passed: parsing, registry, OpenAPI/AsyncAPI capability indexes, operationPath and channelPath resolution, RFC 9535 JSONPath selectors, control-flow validation, workflow graph construction, source snippets, editor commands, serialization, operation-to-step authoring, mapping edits, runtime expressions, workflow composition, async DAG modeling, static execution plans, mock execution, and runner adapters.",
 );

@@ -2,7 +2,7 @@
 
 Tasks are intentionally split into increments that keep the application
 buildable and verifiable. The current implementation batch covers Task 0 through
-Task 21.
+Task 23.
 
 ## Milestone 1 — Read-only Workflow Studio
 
@@ -422,6 +422,70 @@ Resolve the standard `operationPath` target form in addition to `operationId`.
 - [x] Invalid `operationPath` values are rejected by the validator.
 - [x] Both forms are exercised by verification.
 - [x] `npm run build` and `npm run verify` pass.
+
+### Task 22: Implement full RFC 9535 JSONPath
+
+Expand the selector engine beyond the core child/index/wildcard subset so
+real-world output mappings and success criteria can filter response data.
+
+**Acceptance criteria**
+
+- [x] Array slices support optional start/end bounds, negative values, and steps.
+- [x] Name and index selectors can be unioned inside one bracket.
+- [x] Recursive descent supports shorthand names, wildcards, and bracketed selectors.
+- [x] Filters support existence tests, comparisons, `&&`, `||`, `!`, and parentheses.
+- [x] Comparisons support `==`, `!=`, `<`, `<=`, `>`, `>=`, and regex `=~`.
+- [x] Filter operands support current (`@`) and root-relative (`$`) paths plus literals.
+- [x] The `length`, `count`, `match`, `search`, and `value` function extensions are supported.
+- [x] Missing values follow Nothing semantics instead of coercing to false-y defaults.
+- [x] Comparisons enforce singular-query operands and value-returning functions.
+- [x] Result-count, depth, and expression limits with cycle guards are retained.
+- [x] Filter selectors work through selector validation, output mapping, success criteria, and mock execution.
+- [x] Syntax and evaluation fixtures are exercised by verification.
+- [x] `npm run build` and `npm run verify` pass.
+
+### Task 23: Add Arazzo JSON Schema structural validation
+
+Close structural edge cases that the hand-written semantic validator
+intentionally does not cover by validating raw documents against the official
+Arazzo JSON Schemas.
+
+**Acceptance criteria**
+
+- [x] The official Arazzo 1.1 and 1.0 validation schemas are vendored locally with attribution.
+- [x] Documents validate against the schema matching their specification version.
+- [x] Validation uses the same draft-2020-12 engine as the official test harness (`@hyperjump/json-schema`).
+- [x] Schema failures are converted into actionable diagnostics with JSON pointers.
+- [x] Diagnostic messages explain missing required properties and type/pattern/enum constraints.
+- [x] Errors are grouped by instance location and capped to keep the panel readable.
+- [x] Schema diagnostics appear in both the workspace diagnostics panel and the step inspector.
+- [x] The official 62 v1.1 and 5 v1.0 corpus fixtures are vendored and executed by verification.
+- [x] The bundled Pet flow sample remains schema-valid.
+- [x] The validator and schemas load on demand as async chunks.
+- [x] No remote schema fetching occurs at runtime.
+- [x] Production bundle chunk loading is exercised in a real browser.
+- [x] `npm run build` and `npm run verify` pass.
+
+### Task 22: Implement full RFC 9535 JSONPath
+
+Replace the JSONPath MVP subset with a spec-faithful engine for selectors,
+success criteria, and output mappings.
+
+**Acceptance criteria**
+
+- [ ] Bracketed segments support comma-separated selector lists.
+- [ ] Array slice selectors support omitted bounds and negative steps.
+- [ ] Filter selectors support comparisons, `&&`, `||`, `!`, and parentheses.
+- [ ] Filter expressions support `@` relative queries and `$` absolute queries.
+- [ ] Queries in logical context perform existence tests.
+- [ ] The `length`, `count`, `match`, `search`, and `value` function extensions are supported.
+- [ ] Function expressions are checked for well-typedness at parse time.
+- [ ] Descendant segments accept names, wildcards, and bracketed selections.
+- [ ] Comparison semantics implement deep equality, Nothing, and number/string ordering.
+- [ ] Existing result and depth safety limits are retained.
+- [ ] Arazzo selector validation and mock execution use the new engine.
+- [ ] RFC-derived fixtures are exercised by verification.
+- [ ] `npm run build` and `npm run verify` pass.
 
 ## Milestone 5 — Real execution adapters
 

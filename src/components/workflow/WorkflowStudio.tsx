@@ -1,10 +1,11 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CircleAlert, Download, FileJson2, Redo2, Route, Trash2, Undo2 } from "lucide-react";
 import { validateArazzoWorkflowComposition } from "../../arazzo/composition";
 import { validateArazzoDocument } from "../../arazzo/validator";
 import type { ArazzoDiagnostic } from "../../arazzo/diagnostics";
 import { resolveArazzoDocument, type ArazzoStepTarget } from "../../arazzo/semantic-resolver";
 import { validateArazzoRuntimeExpressions } from "../../arazzo/runtime-expression";
+import { validateArazzoSchemaStructure } from "../../arazzo/schema-validator";
 import { serializeArazzoDocument, type ArazzoSerializationFormat } from "../../arazzo/serializer";
 import { WorkflowCanvas } from "./WorkflowCanvas";
 import { cn } from "../../lib/utils";
@@ -131,12 +132,19 @@ function DiagnosticsPanel({
   document,
   semanticDiagnostics,
   validationDiagnostics,
+  schemaDiagnostics,
 }: {
   document: ArazzoWorkspaceDocument;
   semanticDiagnostics: ArazzoDiagnostic[];
   validationDiagnostics: ArazzoDiagnostic[];
+  schemaDiagnostics: ArazzoDiagnostic[];
 }) {
-  const diagnostics = [...document.diagnostics, ...semanticDiagnostics, ...validationDiagnostics];
+  const diagnostics = [
+    ...document.diagnostics,
+    ...semanticDiagnostics,
+    ...validationDiagnostics,
+    ...schemaDiagnostics,
+  ];
   return (
     <section className="workflow-panel" aria-label="Arazzo diagnostics">
       <h2>Diagnostics</h2>
@@ -172,6 +180,7 @@ export function WorkflowStudio() {
   const loadOpenApiDocument = useAppStore((state) => state.loadSource);
   const revealNode = useAppStore((state) => state.revealNode);
   const [selectedStepPointer, setSelectedStepPointer] = useState<string>();
+  const [schemaDiagnostics, setSchemaDiagnostics] = useState<ArazzoDiagnostic[]>([]);
   const documents = registry.list();
   const active = documents.find(
     (document): document is ArazzoWorkspaceDocument =>
@@ -201,6 +210,35 @@ export function WorkflowStudio() {
     () => (active?.document ? validateArazzoDocument(active.document) : []),
     [active?.document],
   );
+  useEffect(
+    () => {
+      if (!active?.document) {
+        setSchemaDiagnostics([]);
+        return;
+      }
+      let cancelled = false;
+      const document = active.document;
+      validateArazzoSchemaStructure(document.raw, document.specificationVersion, document.documentId)
+        .then(diagnostics => {
+          if (!cancelled) setSchemaDiagnostics(diagnostics);
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setSchemaDiagnostics([{
+              code: "ARAZZO_SCHEMA_VALIDATION_FAILED",
+              severity: "error",
+              message: "Schema validation could not run; see the browser console for details.",
+              pointer: "#",
+              documentId: document.documentId,
+            }]);
+          }
+        });
+      return () => {
+        cancelled = true;
+      };
+    },
+    [active?.document],
+  );
   const runtimeDiagnostics = useMemo(
     () => (active?.document ? validateArazzoRuntimeExpressions(active.document) : []),
     [active?.document],
@@ -214,6 +252,7 @@ export function WorkflowStudio() {
       ...(active?.diagnostics ?? []),
       ...(resolution?.diagnostics ?? []),
       ...validationDiagnostics,
+      ...schemaDiagnostics,
       ...runtimeDiagnostics,
       ...compositionDiagnostics,
     ],
@@ -221,6 +260,7 @@ export function WorkflowStudio() {
       active?.diagnostics,
       resolution?.diagnostics,
       validationDiagnostics,
+      schemaDiagnostics,
       runtimeDiagnostics,
       compositionDiagnostics,
     ],
@@ -393,6 +433,7 @@ export function WorkflowStudio() {
               document={active}
               semanticDiagnostics={resolution?.diagnostics ?? []}
               validationDiagnostics={validationDiagnostics}
+              schemaDiagnostics={schemaDiagnostics}
             />
           </>
         )}

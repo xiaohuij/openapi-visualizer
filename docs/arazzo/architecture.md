@@ -161,7 +161,11 @@ Runner adapter
 - `serializer.ts` — serializes the edited model back to Arazzo.
 - `graph-builder.ts` — converts semantic output into a workflow graph.
 - `runtime-expression/` — parsing, validation, and evaluation.
-- `selectors/` — JSONPointer, JSONPath, and eventually XPath support.
+- `selectors/` — JSONPointer and RFC 9535 JSONPath (slices, unions, recursive
+  descent, filters, and function extensions); XPath support is future work.
+- `schema-validator.ts` — official-schema structural validation with vendored
+  1.0/1.1 JSON Schemas and on-demand draft-2020-12 validation chunks.
+- `schemas/` — vendored official Arazzo JSON Schemas (Apache 2.0, attributed).
 
 ### `src/asyncapi`
 
