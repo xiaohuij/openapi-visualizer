@@ -2,7 +2,7 @@
 
 Tasks are intentionally split into increments that keep the application
 buildable and verifiable. The current implementation batch covers Task 0 through
-Task 23.
+Task 24.
 
 ## Milestone 1 — Read-only Workflow Studio
 
@@ -464,6 +464,24 @@ Arazzo JSON Schemas.
 - [x] The validator and schemas load on demand as async chunks.
 - [x] No remote schema fetching occurs at runtime.
 - [x] Production bundle chunk loading is exercised in a real browser.
+- [x] `npm run build` and `npm run verify` pass.
+
+### Task 24: Implement XPath selectors
+
+Complete the remaining standard selector family after JSONPath.
+
+**Acceptance criteria**
+
+- [x] XPath 1.0 queries parse and evaluate through a dedicated engine (`xpath` + `@xmldom/xmldom`).
+- [x] XPath evaluation works identically in Node verification and the browser bundle.
+- [x] Selector objects with `type: xpath` validate their query syntax.
+- [x] Success criteria with `type: xpath` validate their condition syntax.
+- [x] XPath criteria evaluate with XPath truthiness (node-set, number, string, boolean).
+- [x] XPath output selectors return node string-values and primitive function results.
+- [x] Non-XML contexts produce actionable guidance instead of silent failures.
+- [x] Malformed XML contexts report the parser reason without console noise.
+- [x] Result counts remain bounded.
+- [x] Unit, validation-error, and mock-execution fixtures are exercised by verification.
 - [x] `npm run build` and `npm run verify` pass.
 
 ### Task 22: Implement full RFC 9535 JSONPath

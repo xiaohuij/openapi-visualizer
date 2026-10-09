@@ -6,6 +6,7 @@ import type {
 } from "../types";
 import { arazzoOutputEntries } from "../outputs";
 import { parseJsonPath, parseJsonPointer } from "../selectors";
+import { parseXPathQuery } from "../xpath";
 import { workflowInputs } from "../workflow-inputs";
 
 export type ArazzoRuntimeExpressionRoot =
@@ -260,6 +261,15 @@ function validateSelector(
     }
     return;
   }
+  if (type === "xpath") {
+    const parsed = parseXPathQuery(query);
+    if (parsed.error) {
+      diagnostics.push(
+        arazzoError("ARAZZO_SELECTOR_INVALID", parsed.error, pointer, document.documentId),
+      );
+    }
+    return;
+  }
 
   diagnostics.push(
     arazzoWarning(
@@ -331,6 +341,24 @@ export function validateArazzoRuntimeExpressions(document: ArazzoDocument): Araz
         }
       }
       for (const criterion of step.successCriteria ?? []) {
+        const criterionType = typeof criterion.type === "string"
+          ? criterion.type
+          : typeof criterion.type === "object" && criterion.type !== null && !Array.isArray(criterion.type)
+            ? criterion.type.type
+            : undefined;
+        if (criterionType === "xpath" && criterion.condition) {
+          const parsed = parseXPathQuery(criterion.condition);
+          if (parsed.error) {
+            diagnostics.push(
+              arazzoError(
+                "ARAZZO_SELECTOR_INVALID",
+                parsed.error,
+                `${step.pointer}/successCriteria/${step.successCriteria?.indexOf(criterion) ?? 0}/condition`,
+                document.documentId,
+              ),
+            );
+          }
+        }
         for (const expression of [
           ...(criterion.context ? [criterion.context] : []),
           ...(criterion.condition ? [criterion.condition] : []),

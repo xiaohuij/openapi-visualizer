@@ -13,6 +13,7 @@ import {
 } from "../src/arazzo/selectors";
 import { arazzoSourceSnippet } from "../src/arazzo/source-snippet";
 import { parseSourceDescriptionPointer, resolveArazzoDocument } from "../src/arazzo/semantic-resolver";
+import { evaluateXPath, evaluateXPathCriterion, parseXPathQuery } from "../src/arazzo/xpath";
 import { validateArazzoDocument } from "../src/arazzo/validator";
 import { parseAsyncApiSource } from "../src/asyncapi/parser";
 import { parseOpenApiSource } from "../src/lib/visualizer";
@@ -191,6 +192,42 @@ assert.match(
   parseJsonPath("$.pets[0:3:0]")?.error ?? "",
   /slice step cannot be zero/,
   "zero slice steps are rejected",
+);
+
+// --- XPath selectors ---
+const orderXml = `<order id="o-1"><status>confirmed</status><items><item price="120">A</item><item price="80">B</item></items></order>`;
+assert.equal(parseXPathQuery("/order/status").value, true, "valid XPath queries should parse");
+assert.match(
+  parseXPathQuery("/order[")?.error ?? "",
+  /XPath parse error/,
+  "invalid XPath queries should report a parse error",
+);
+assert.deepEqual(
+  evaluateXPath(orderXml, "/order/items/item[@price > 100]").value,
+  ["A"],
+  "XPath predicates should filter nodes",
+);
+assert.deepEqual(
+  evaluateXPath(orderXml, "string(/order/@id)").value,
+  ["o-1"],
+  "XPath functions should extract primitive values",
+);
+assert.deepEqual(
+  evaluateXPath(orderXml, "count(//item)").value,
+  [2],
+  "XPath count() should count matching nodes",
+);
+assert.equal(evaluateXPathCriterion(orderXml, "/order/status = 'confirmed'").value, true);
+assert.equal(evaluateXPathCriterion(orderXml, "/order/status = 'rejected'").value, false);
+assert.equal(
+  evaluateXPathCriterion(orderXml, "/order/items/item[@price > 500]").value,
+  false,
+  "empty node-sets should be falsy",
+);
+assert.match(
+  evaluateXPath({ not: "xml" }, "/order").error ?? "",
+  /require a non-empty XML string context/,
+  "non-string contexts should be rejected with guidance",
 );
 assert.deepEqual(
   validateArazzoRuntimeExpressions(valid.document!),
@@ -1357,6 +1394,117 @@ const filterFailureResult = executeArazzoMockPlan(filterPlan, {
 assert.equal(filterFailureResult.workflows[0]?.steps[0]?.status, "failed");
 assert.equal(filterFailureResult.workflows[0]?.steps[0]?.criteria[0]?.passed, false);
 
+const xpathExecutionArazzo = parseArazzoSource(
+  `arazzo: 1.1.0
+info:
+  title: XPath mock execution
+  version: 1.0.0
+sourceDescriptions:
+  - name: petstore
+    type: openapi
+    url: catalog-api.yaml
+workflows:
+  - workflowId: xpathFlow
+    steps:
+      - stepId: fetchOrder
+        operationId: listPets
+        successCriteria:
+          - type: xpath
+            context: $response.body
+            condition: /order/status = 'confirmed'
+        outputs:
+          expensiveItem:
+            type: xpath
+            context: $response.body
+            selector: /order/items/item[@price > 100]
+          orderId:
+            type: xpath
+            context: $response.body
+            selector: string(/order/@id)
+`,
+  "xpath-execution.arazzo.yaml",
+);
+assert.ok(xpathExecutionArazzo.document, "XPath execution fixture should parse");
+assert.deepEqual(
+  validateArazzoRuntimeExpressions(xpathExecutionArazzo.document).filter(diagnostic => diagnostic.severity === "error"),
+  [],
+  "valid XPath selectors and criteria should pass runtime-expression validation",
+);
+const xpathRegistry = new DocumentRegistry();
+const xpathArazzoEntry = xpathRegistry.upsertArazzo(xpathExecutionArazzo.document, xpathExecutionArazzo.diagnostics);
+xpathRegistry.upsertOpenApi(catalogApi.document!);
+xpathRegistry.bindSourceDescription(xpathArazzoEntry.id, "petstore", "openapi:catalog-api.yaml");
+const xpathPlan = compileArazzoExecutionPlan(
+  resolveArazzoDocument(
+    xpathExecutionArazzo.document,
+    xpathRegistry,
+    new OpenApiCapabilityIndex(xpathRegistry.listOpenApi()),
+  ),
+);
+const xpathMockResult = executeArazzoMockPlan(xpathPlan, {
+  inputs: {},
+  examples: {
+    fetchOrder: {
+      statusCode: 200,
+      response: {
+        body: `<order id="o-9"><status>confirmed</status><items><item price="150">Premium</item><item price="50">Basic</item></items></order>`,
+      },
+    },
+  },
+});
+assert.equal(xpathMockResult.workflows[0]?.steps[0]?.status, "succeeded");
+assert.equal(xpathMockResult.workflows[0]?.steps[0]?.criteria[0]?.passed, true);
+assert.deepEqual(
+  xpathMockResult.workflows[0]?.steps[0]?.outputs,
+  { expensiveItem: ["Premium"], orderId: ["o-9"] },
+  "XPath output selectors should materialize through mock execution",
+);
+const xpathFailureResult = executeArazzoMockPlan(xpathPlan, {
+  inputs: {},
+  examples: {
+    fetchOrder: {
+      statusCode: 200,
+      response: { body: `<order id="o-9"><status>rejected</status><items/></order>` },
+    },
+  },
+});
+assert.equal(xpathFailureResult.workflows[0]?.steps[0]?.status, "failed");
+assert.equal(xpathFailureResult.workflows[0]?.steps[0]?.criteria[0]?.passed, false);
+
+const invalidXpathArazzo = parseArazzoSource(
+  `arazzo: 1.1.0
+info:
+  title: Invalid XPath
+  version: 1.0.0
+sourceDescriptions:
+  - name: petstore
+    type: openapi
+    url: catalog-api.yaml
+workflows:
+  - workflowId: brokenXpath
+    steps:
+      - stepId: broken
+        operationId: listPets
+        successCriteria:
+          - type: xpath
+            context: $response.body
+            condition: /order/status ==
+        outputs:
+          broken:
+            type: xpath
+            context: $response.body
+            selector: /order[
+`,
+  "invalid-xpath.arazzo.yaml",
+);
+assert.ok(invalidXpathArazzo.document, "invalid XPath fixture should parse structurally");
+const invalidXpathDiagnostics = validateArazzoRuntimeExpressions(invalidXpathArazzo.document);
+assert.equal(
+  invalidXpathDiagnostics.filter(diagnostic => diagnostic.code === "ARAZZO_SELECTOR_INVALID").length,
+  2,
+  "invalid XPath criteria and selectors should both be reported",
+);
+
 const runnerMockContext = {
   inputs: { token: "runner-token" },
   examples: {
@@ -1681,5 +1829,5 @@ for (const code of [
 }
 
 console.log(
-  "Arazzo verification passed: parsing, registry, OpenAPI/AsyncAPI capability indexes, operationPath and channelPath resolution, RFC 9535 JSONPath selectors, control-flow validation, workflow graph construction, source snippets, editor commands, serialization, operation-to-step authoring, mapping edits, runtime expressions, workflow composition, async DAG modeling, static execution plans, mock execution, and runner adapters.",
+  "Arazzo verification passed: parsing, registry, OpenAPI/AsyncAPI capability indexes, operationPath and channelPath resolution, RFC 9535 JSONPath and XPath selectors, control-flow validation, workflow graph construction, source snippets, editor commands, serialization, operation-to-step authoring, mapping edits, runtime expressions, workflow composition, async DAG modeling, static execution plans, mock execution, and runner adapters.",
 );

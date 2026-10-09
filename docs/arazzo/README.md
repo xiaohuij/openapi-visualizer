@@ -14,13 +14,13 @@ experience.
 
 ## Current status
 
-The roadmap is implemented through Task 23. The application now supports local
+The roadmap is implemented through Task 24. The application now supports local
 OpenAPI/Arazzo/AsyncAPI workspaces, semantic resolution and validation, a
 read-only DAG, step authoring and mapping edits, Arazzo YAML/JSON export,
 workflow composition, schema-aware AsyncAPI steps, `operationPath` and
-`channelPath` resolution, full RFC 9535 JSONPath selectors, official Arazzo
-JSON Schema structural validation, static execution plans, mock execution, and
-preview-only runner adapters. Use **Pet flow** in the top bar to load the
+`channelPath` resolution, full RFC 9535 JSONPath and XPath selectors, official
+Arazzo JSON Schema structural validation, static execution plans, mock
+execution, and preview-only runner adapters. Use **Pet flow** in the top bar to load the
 bundled OpenAPI 3.2 + Arazzo 1.1 sample, and use **Open file** to import
 AsyncAPI 2.x/3.x documents alongside your Arazzo workflows.
 

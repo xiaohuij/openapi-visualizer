@@ -162,7 +162,9 @@ Runner adapter
 - `graph-builder.ts` — converts semantic output into a workflow graph.
 - `runtime-expression/` — parsing, validation, and evaluation.
 - `selectors/` — JSONPointer and RFC 9535 JSONPath (slices, unions, recursive
-  descent, filters, and function extensions); XPath support is future work.
+  descent, filters, and function extensions).
+- `xpath.ts` — XPath 1.0 parsing, truthiness, and node string-value evaluation
+  over XML string contexts.
 - `schema-validator.ts` — official-schema structural validation with vendored
   1.0/1.1 JSON Schemas and on-demand draft-2020-12 validation chunks.
 - `schemas/` — vendored official Arazzo JSON Schemas (Apache 2.0, attributed).

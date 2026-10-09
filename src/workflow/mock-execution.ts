@@ -4,6 +4,7 @@ import {
   evaluateJsonPointer,
   parseJsonPointer,
 } from "../arazzo/selectors";
+import { evaluateXPath, evaluateXPathCriterion } from "../arazzo/xpath";
 import type {
   ArazzoExecutionPlan,
   ArazzoExecutionStep,
@@ -225,6 +226,18 @@ export function evaluateArazzoMockCriterion(
       };
     }
 
+    if (type === "xpath") {
+      const context = criterion.context
+        ? evaluateArazzoMockExpression(criterion.context, scope)
+        : undefined;
+      const selected = evaluateXPathCriterion(context, condition);
+      return {
+        condition,
+        passed: Boolean(selected.value),
+        error: selected.error,
+      };
+    }
+
     if (type === "regex") {
       const context = criterion.context
         ? evaluateArazzoMockExpression(criterion.context, scope)
@@ -268,6 +281,8 @@ function outputValue(step: ArazzoExecutionStep, scope: ArazzoMockEvaluationScope
         : undefined;
       const result = output.selectorType === "jsonpointer"
         ? evaluateJsonPointer(context, output.selector)
+        : output.selectorType === "xpath"
+          ? evaluateXPath(context, output.selector)
         : evaluateJsonPath(context, output.selector);
       if (result.error) throw new Error(result.error);
       return result.value;
