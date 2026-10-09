@@ -1,12 +1,16 @@
-import { useCallback, useEffect, useState } from "react";
-import { VisualizerCanvas } from "./components/VisualizerCanvas";
-import { InspectorPanel } from "./components/InspectorPanel";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { Landing } from "./components/Landing";
 import { StatusBar } from "./components/StatusBar";
 import { TopBar } from "./components/TopBar";
-import { WorkflowStudio } from "./components/workflow/WorkflowStudio";
 import { useAppStore } from "./store";
 import { useWorkflowStore } from "./workflow/store";
+
+const ApiWorkspaceSurface = lazy(() =>
+  import("./components/ApiWorkspace").then(module => ({ default: module.ApiWorkspace })),
+);
+const WorkflowStudio = lazy(() =>
+  import("./components/workflow/WorkflowStudio").then(module => ({ default: module.WorkflowStudio })),
+);
 
 export function App() {
   const document = useAppStore((state) => state.document);
@@ -38,7 +42,9 @@ export function App() {
     return (
       <div className="app-shell">
         <TopBar />
-        <WorkflowStudio />
+        <Suspense fallback={<div className="surface-loading" role="status">Loading Workflow Studio…</div>}>
+          <WorkflowStudio />
+        </Suspense>
       </div>
     );
   }
@@ -48,21 +54,9 @@ export function App() {
       <TopBar />
       {document ? (
         <>
-          <main className={`workspace${inspectorOpen ? " inspector-open" : ""}`}>
-            <section className="visualizer-shell">
-              <VisualizerCanvas />
-              <div className="legend">
-                <span className="legend-title">Relationships</span>
-                <span className="legend-item contains">containment</span>
-                <span className="legend-item request">request</span>
-                <span className="legend-item response">response</span>
-                <span className="legend-item ref">$ref / schema</span>
-                <span className="legend-item security">security</span>
-                <span className="legend-item tag">tag</span>
-              </div>
-            </section>
-            <InspectorPanel open={inspectorOpen} onToggle={toggleInspector} />
-          </main>
+          <Suspense fallback={<div className="surface-loading" role="status">Loading visualization…</div>}>
+            <ApiWorkspaceSurface inspectorOpen={inspectorOpen} onToggleInspector={toggleInspector} />
+          </Suspense>
           <StatusBar />
         </>
       ) : (

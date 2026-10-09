@@ -192,6 +192,14 @@ button:disabled {
   flex-direction: column;
 }
 
+.surface-loading {
+  display: grid;
+  place-items: center;
+  min-height: 40vh;
+  color: var(--muted, inherit);
+  font-size: 0.9rem;
+}
+
 .top-bar {
   position: relative;
   z-index: 30;

@@ -196,6 +196,15 @@ Runner adapter
 - Expression and selector builders.
 - Diagnostics and execution-plan panels.
 
+### Bundle boundaries
+
+The application shell stays small and loads heavy surfaces on demand: the API
+visualization surface and Workflow Studio are `React.lazy` boundaries behind
+Suspense fallbacks. Vendor dependencies are grouped into cache-stable manual
+chunks (`vendor-react`, `vendor-yaml`, `vendor-icons`, `vendor-graph`,
+`vendor-xml`, and `vendor-schema`); schemas and the schema engine load only
+when structural validation runs.
+
 ## 7. Workspace documents
 
 The first workspace supports multiple local OpenAPI documents and one or more

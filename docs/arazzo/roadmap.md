@@ -2,7 +2,7 @@
 
 Tasks are intentionally split into increments that keep the application
 buildable and verifiable. The current implementation batch covers Task 0 through
-Task 24.
+Task 25.
 
 ## Milestone 1 — Read-only Workflow Studio
 
@@ -482,6 +482,23 @@ Complete the remaining standard selector family after JSONPath.
 - [x] Malformed XML contexts report the parser reason without console noise.
 - [x] Result counts remain bounded.
 - [x] Unit, validation-error, and mock-execution fixtures are exercised by verification.
+- [x] `npm run build` and `npm run verify` pass.
+
+### Task 25: Split the application bundle
+
+Reduce initial JavaScript cost without changing product behavior.
+
+**Acceptance criteria**
+
+- [x] The API visualization surface loads lazily after a document is opened.
+- [x] Workflow Studio loads lazily when the Flow surface is first used.
+- [x] Suspense fallbacks communicate surface loading.
+- [x] Vendor dependencies are grouped into stable manual chunks (React, YAML, icons, graph, XML, and schema engines).
+- [x] Initial preloaded JavaScript drops from one ~279 KB gzip bundle to ~121 KB gzip across four cache-stable chunks.
+- [x] Graph, XML, schema, and surface chunks load only on demand.
+- [x] The hyperjump circular-chunk Rollup warning is eliminated by one `vendor-schema` chunk.
+- [x] No chunk exceeds the 500 KB warning threshold.
+- [x] Lazy surfaces and mock execution are exercised against the production preview in a real browser.
 - [x] `npm run build` and `npm run verify` pass.
 
 ### Task 22: Implement full RFC 9535 JSONPath
