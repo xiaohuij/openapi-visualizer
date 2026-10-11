@@ -1,4 +1,4 @@
-import { Play, ShieldCheck } from "lucide-react";
+import { Play, RotateCcw, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import type { ArazzoExecutionPlan } from "../../workflow/execution-plan";
 import {
@@ -10,7 +10,17 @@ import { cn } from "../../lib/utils";
 
 const initialSource = `{\n  "inputs": {},\n  "examples": {}\n}`;
 
-export function MockExecutionPanel({ plan }: { plan: ArazzoExecutionPlan }) {
+export function MockExecutionPanel({
+  plan,
+  onResult,
+  onReplay,
+  hasResult,
+}: {
+  plan: ArazzoExecutionPlan;
+  onResult?: (result: ArazzoMockExecutionResult | undefined) => void;
+  onReplay?: () => void;
+  hasResult?: boolean;
+}) {
   const [source, setSource] = useState(initialSource);
   const [error, setError] = useState<string>();
   const [result, setResult] = useState<ArazzoMockExecutionResult>();
@@ -49,11 +59,13 @@ export function MockExecutionPanel({ plan }: { plan: ArazzoExecutionPlan }) {
             const runnerResult = browserDryRunArazzoRunner.execute(plan, context);
             setResult(runnerResult.result);
             setPreviews(runnerResult.requestPreviews);
+            onResult?.(runnerResult.result);
             setError(runnerResult.diagnostics.length > 0
               ? runnerResult.diagnostics.map(diagnostic => diagnostic.message).join("; ")
               : undefined);
           } catch (exception) {
             setResult(undefined);
+            onResult?.(undefined);
             setError(exception instanceof Error ? exception.message : "Unable to parse mock context.");
           }
         }}
@@ -63,6 +75,13 @@ export function MockExecutionPanel({ plan }: { plan: ArazzoExecutionPlan }) {
       </button>
 
       {error ? <p className="mapping-error" role="alert">{error}</p> : null}
+
+      {hasResult && onReplay ? (
+        <button type="button" className="ghost-button replay-button" onClick={onReplay}>
+          <RotateCcw size={13} />
+          Replay on graph
+        </button>
+      ) : null}
 
       {result ? (
         <div className="mock-results">

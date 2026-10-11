@@ -38,6 +38,7 @@ import { cn } from "../../lib/utils";
 interface WorkflowGraphNodeData {
   model: ArazzoGraphNode;
   selected?: boolean;
+  execution?: "running" | "succeeded" | "failed" | "blocked";
   [key: string]: unknown;
 }
 
@@ -117,6 +118,7 @@ function WorkflowGraphNode({ data }: NodeProps) {
         model.kind,
         model.resolved ? "resolved" : "unresolved",
         nodeData.selected && "selected",
+        nodeData.execution && `exec-${nodeData.execution}`,
       )}
       aria-selected={nodeData.selected || undefined}
     >
@@ -179,10 +181,15 @@ function Canvas({
   resolution,
   selectedStepPointer,
   onSelectStep,
+  execution,
 }: {
   resolution: ArazzoResolution;
   selectedStepPointer?: string;
   onSelectStep?: (pointer: string) => void;
+  execution?: {
+    states: Map<string, { status: "running" | "succeeded" | "failed" | "blocked" }>;
+    activePointer?: string;
+  };
 }) {
   const theme = useAppStore((state) => state.theme);
   const { fitView } = useReactFlow();
@@ -199,6 +206,7 @@ function Canvas({
         data: {
           model,
           selected: model.kind === "step" && model.pointer === selectedStepPointer,
+          execution: model.kind === "step" ? execution?.states.get(model.pointer)?.status : undefined,
         } satisfies WorkflowGraphNodeData,
       } satisfies Node;
     });
@@ -213,8 +221,18 @@ function Canvas({
       className: `workflow-graph-edge-${edge.relation}`,
       style: edgeStyles[edge.relation],
     })) satisfies Edge[];
-    return { nodes: layoutNodes(flowNodes, flowEdges), edges: flowEdges };
-  }, [graph, selectedStepPointer]);
+    const activeStepNode = graph.nodes.find(
+      node => node.kind === "step" && node.pointer === execution?.activePointer,
+    );
+    const animatedEdges = activeStepNode
+      ? flowEdges.map(edge =>
+          edge.source === activeStepNode?.id
+            ? { ...edge, animated: true }
+            : edge,
+        )
+      : flowEdges;
+    return { nodes: layoutNodes(flowNodes, flowEdges), edges: animatedEdges };
+  }, [graph, selectedStepPointer, execution]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -233,6 +251,10 @@ function Canvas({
       fitView
       className="workflow-flow"
       nodesFocusable
+      panOnDrag
+      zoomOnScroll
+      nodesDraggable={false}
+      nodesConnectable={false}
       onNodeClick={(_, node) => {
         const model = (node.data as unknown as WorkflowGraphNodeData).model;
         if (model.kind === "step") onSelectStep?.(model.pointer);
@@ -286,10 +308,15 @@ export function WorkflowCanvas({
   resolution,
   selectedStepPointer,
   onSelectStep,
+  execution,
 }: {
   resolution: ArazzoResolution;
   selectedStepPointer?: string;
   onSelectStep?: (pointer: string) => void;
+  execution?: {
+    states: Map<string, { status: "running" | "succeeded" | "failed" | "blocked" }>;
+    activePointer?: string;
+  };
 }) {
   return (
     <section className="workflow-canvas" aria-label="Workflow graph">
@@ -298,6 +325,7 @@ export function WorkflowCanvas({
           resolution={resolution}
           selectedStepPointer={selectedStepPointer}
           onSelectStep={onSelectStep}
+          execution={execution}
         />
       </ReactFlowProvider>
     </section>

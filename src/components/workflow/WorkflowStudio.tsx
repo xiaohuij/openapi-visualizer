@@ -18,6 +18,8 @@ import { useAppStore } from "../../store";
 import { StepInspector } from "./StepInspector";
 import { ExecutionPlanPanel } from "./ExecutionPlanPanel";
 import { MockExecutionPanel } from "./MockExecutionPanel";
+import { CollapsibleSection } from "./CollapsibleSection";
+import type { ArazzoMockExecutionResult } from "../../workflow/mock-execution";
 
 function documentTitle(document: WorkspaceDocument) {
   if (document.kind === "openapi") {
@@ -181,6 +183,8 @@ export function WorkflowStudio() {
   const revealNode = useAppStore((state) => state.revealNode);
   const [selectedStepPointer, setSelectedStepPointer] = useState<string>();
   const [schemaDiagnostics, setSchemaDiagnostics] = useState<ArazzoDiagnostic[]>([]);
+  const [executionResult, setExecutionResult] = useState<ArazzoMockExecutionResult>();
+  const [playbackCursor, setPlaybackCursor] = useState(0);
   const documents = registry.list();
   const active = documents.find(
     (document): document is ArazzoWorkspaceDocument =>
@@ -270,6 +274,57 @@ export function WorkflowStudio() {
       resolvedWorkflow.steps.map(resolvedStep => ({ resolvedWorkflow, resolvedStep })),
     )
     .find(item => item.resolvedStep.step.pointer === selectedStepPointer);
+
+  const executionOrder = useMemo(
+    () => (
+      executionResult
+        ? executionResult.workflows.flatMap(workflow =>
+            workflow.steps.map(step => ({ workflowId: workflow.workflowId, ...step })),
+          )
+        : []
+    ),
+    [executionResult],
+  );
+  const totalSteps = executionOrder.length;
+  useEffect(
+    () => {
+      setPlaybackCursor(0);
+      if (totalSteps === 0) return;
+      let cursor = 0;
+      const timer = window.setInterval(() => {
+        cursor += 1;
+        setPlaybackCursor(cursor);
+        if (cursor >= totalSteps) window.clearInterval(timer);
+      }, 650);
+      return () => window.clearInterval(timer);
+    },
+    [executionResult, totalSteps],
+  );
+  const graphExecution = useMemo(() => {
+    if (!executionResult || totalSteps === 0) return undefined;
+    const states = new Map<string, { status: "running" | "succeeded" | "failed" | "blocked" }>();
+    executionOrder.forEach((step, index) => {
+      if (index < playbackCursor) {
+        states.set(step.pointer, { status: step.status });
+      } else if (index === playbackCursor) {
+        states.set(step.pointer, { status: "running" });
+      }
+    });
+    return {
+      states,
+      activePointer: playbackCursor < totalSteps ? executionOrder[playbackCursor]?.pointer : undefined,
+    };
+  }, [executionOrder, playbackCursor, totalSteps, executionResult]);
+  const executionSummary = useMemo(() => {
+    if (!executionResult) return undefined;
+    const steps = executionResult.workflows.flatMap(workflow => workflow.steps);
+    return {
+      total: steps.length,
+      succeeded: steps.filter(step => step.status === "succeeded").length,
+      failed: steps.filter(step => step.status === "failed").length,
+      blocked: steps.filter(step => step.status === "blocked").length,
+    };
+  }, [executionResult]);
   const openOperation = useCallback(
     (documentId: string, nodeId: string) => {
       const target = registry.get(documentId);
@@ -372,10 +427,30 @@ export function WorkflowStudio() {
                 resolution={resolution}
                 selectedStepPointer={selectedStep?.resolvedStep.step.pointer}
                 onSelectStep={setSelectedStepPointer}
+                execution={graphExecution}
               />
             ) : null}
-            {executionPlan ? <ExecutionPlanPanel plan={executionPlan} /> : null}
-            {executionPlan ? <MockExecutionPanel plan={executionPlan} /> : null}
+            <div className="canvas-guide" role="note">
+              <span>Steps run left → right</span>
+              <span>dashed arrows = dependencies</span>
+              <span>click a step to inspect</span>
+              <span>drag background to pan · scroll to zoom</span>
+              {executionSummary ? (
+                <span className={cn("exec-summary", executionSummary.failed + executionSummary.blocked > 0 ? "has-failures" : "all-passed")}>
+                  {executionSummary.succeeded}/{executionSummary.total} succeeded
+                  {executionSummary.failed ? ` · ${executionSummary.failed} failed` : ""}
+                  {executionSummary.blocked ? ` · ${executionSummary.blocked} blocked` : ""}
+                </span>
+              ) : null}
+            </div>
+            {executionPlan ? (
+              <MockExecutionPanel
+                plan={executionPlan}
+                onResult={setExecutionResult}
+                onReplay={() => setPlaybackCursor(0)}
+                hasResult={Boolean(executionResult)}
+              />
+            ) : null}
             {selectedStep ? (
               <StepInspector
                 resolvedStep={selectedStep.resolvedStep}
@@ -385,56 +460,73 @@ export function WorkflowStudio() {
                 onOpenOperation={operation => openOperation(operation.documentId, operation.nodeId)}
               />
             ) : null}
-            <div className="workflow-list">
-              {active.document.workflows.map((workflow) => (
-                <article className="workflow-card" key={workflow.workflowId}>
-                  <header>
-                    <div>
-                      <h3>{workflow.workflowId}</h3>
-                      <p>{workflow.summary ?? workflow.description ?? "No workflow summary"}</p>
-                    </div>
-                  </header>
-                  <ol className="workflow-steps">
-                    {workflow.steps.map((step) => {
-                      const resolvedStep = resolution?.workflows
-                        .find((item) => item.workflow.workflowId === workflow.workflowId)
-                        ?.steps.find((item) => item.step.stepId === step.stepId);
-                      return (
-                        <li key={step.stepId}>
-                          <div className={cn("workflow-step-summary", selectedStep?.resolvedStep.step.pointer === step.pointer && "selected")}>
-                            <strong>{step.stepId}</strong>
-                            <span>
-                              {step.operationId
-                                ? `operation: ${step.operationId}`
-                                : step.operationPath
-                                  ? `operation path: ${step.operationPath}`
-                                  : step.channelPath
-                                    ? `channel: ${step.channelPath}`
+            {executionPlan ? (
+              <CollapsibleSection title="Static execution plan" hint="topology and bindings only">
+                <ExecutionPlanPanel plan={executionPlan} />
+              </CollapsibleSection>
+            ) : null}
+            <CollapsibleSection
+              title="Workflows and steps"
+              badge={`${active.document.workflows.length} workflows`}
+              hint="text list of every step"
+            >
+              <div className="workflow-list">
+                {active.document.workflows.map((workflow) => (
+                  <article className="workflow-card" key={workflow.workflowId}>
+                    <header>
+                      <div>
+                        <h3>{workflow.workflowId}</h3>
+                        <p>{workflow.summary ?? workflow.description ?? "No workflow summary"}</p>
+                      </div>
+                    </header>
+                    <ol className="workflow-steps">
+                      {workflow.steps.map((step) => {
+                        const resolvedStep = resolution?.workflows
+                          .find((item) => item.workflow.workflowId === workflow.workflowId)
+                          ?.steps.find((item) => item.step.stepId === step.stepId);
+                        return (
+                          <li key={step.stepId}>
+                            <div className={cn("workflow-step-summary", selectedStep?.resolvedStep.step.pointer === step.pointer && "selected")}>
+                              <strong>{step.stepId}</strong>
+                              <span>
+                                {step.operationId
+                                  ? `operation: ${step.operationId}`
+                                  : step.operationPath
+                                    ? `operation path: ${step.operationPath}`
+                                    : step.channelPath
+                                      ? `channel: ${step.channelPath}`
                                 : step.workflowId
                                   ? `workflow: ${step.workflowId}`
                                   : "No target"}
-                            </span>
-                            <span className={`workflow-target ${targetState(resolvedStep?.target)}`}>
-                              {targetLabel(resolvedStep?.target)}
-                            </span>
-                            {step.dependsOn?.length ? <em>depends on {step.dependsOn.join(", ")}</em> : null}
-                            <button type="button" onClick={() => setSelectedStepPointer(step.pointer)}>
-                              Inspect step
-                            </button>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ol>
-                </article>
-              ))}
-            </div>
-            <DiagnosticsPanel
-              document={active}
-              semanticDiagnostics={resolution?.diagnostics ?? []}
-              validationDiagnostics={validationDiagnostics}
-              schemaDiagnostics={schemaDiagnostics}
-            />
+                              </span>
+                              <span className={`workflow-target ${targetState(resolvedStep?.target)}`}>
+                                {targetLabel(resolvedStep?.target)}
+                              </span>
+                              {step.dependsOn?.length ? <em>depends on {step.dependsOn.join(", ")}</em> : null}
+                              <button type="button" onClick={() => setSelectedStepPointer(step.pointer)}>
+                                Inspect step
+                              </button>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  </article>
+                ))}
+              </div>
+            </CollapsibleSection>
+            <CollapsibleSection
+              title="Diagnostics"
+              badge={diagnostics.length > 0 ? String(diagnostics.length) : "clean"}
+              hint="parser · schema · semantic · runtime"
+            >
+              <DiagnosticsPanel
+                document={active}
+                semanticDiagnostics={resolution?.diagnostics ?? []}
+                validationDiagnostics={validationDiagnostics}
+                schemaDiagnostics={schemaDiagnostics}
+              />
+            </CollapsibleSection>
           </>
         )}
       </section>

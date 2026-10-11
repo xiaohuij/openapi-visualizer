@@ -1731,6 +1731,56 @@ tr:last-child td {
   box-shadow: var(--node-shadow);
 }
 
+.canvas-guide {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.canvas-guide > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.canvas-guide > span::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.55;
+}
+
+.canvas-guide .exec-summary {
+  margin-left: auto;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.canvas-guide .exec-summary::before {
+  display: none;
+}
+
+.canvas-guide .exec-summary.all-passed {
+  background: color-mix(in srgb, var(--emerald, #10b981) 18%, transparent);
+  color: var(--emerald, #059669);
+}
+
+.canvas-guide .exec-summary.has-failures {
+  background: color-mix(in srgb, var(--red) 16%, transparent);
+  color: var(--red);
+}
+
 .workflow-flow {
   width: 100%;
   height: 100%;
@@ -1761,6 +1811,94 @@ tr:last-child td {
 .workflow-graph-node.selected {
   border-color: var(--node-selected-border);
   box-shadow: var(--node-selected-shadow);
+}
+
+.workflow-graph-node.exec-running {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cyan) 22%, transparent);
+  animation: exec-pulse 1.05s ease-in-out infinite;
+}
+
+.workflow-graph-node.exec-succeeded {
+  border-color: color-mix(in srgb, var(--emerald, #10b981) 62%, var(--node-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--emerald, #10b981) 14%, transparent);
+}
+
+.workflow-graph-node.exec-failed {
+  border-color: var(--red);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 16%, transparent);
+}
+
+.workflow-graph-node.exec-blocked {
+  opacity: 0.62;
+  filter: grayscale(0.35);
+}
+
+@keyframes exec-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--cyan) 22%, transparent); }
+  50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--cyan) 10%, transparent); }
+}
+
+.collapsible-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.collapsible-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border: none;
+  border-radius: 15px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.collapsible-toggle:hover {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+
+.collapsible-toggle h2 {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.collapsible-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.collapsible-hint {
+  margin-left: auto;
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.collapsible-panel > *:not(.collapsible-toggle) {
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.collapsible-panel .workflow-panel,
+.collapsible-panel section[aria-label] {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 12px 0 0;
+}
+
+.replay-button {
+  margin-top: 10px;
 }
 
 .workflow-graph-node-header {
