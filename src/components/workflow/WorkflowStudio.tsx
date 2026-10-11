@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronLeft } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CircleAlert, Download, FileJson2, Redo2, Route, Trash2, Undo2 } from "lucide-react";
 import { validateArazzoWorkflowComposition } from "../../arazzo/composition";
 import { validateArazzoDocument } from "../../arazzo/validator";
@@ -7,7 +8,6 @@ import { resolveArazzoDocument, type ArazzoStepTarget } from "../../arazzo/seman
 import { validateArazzoRuntimeExpressions } from "../../arazzo/runtime-expression";
 import { validateArazzoSchemaStructure } from "../../arazzo/schema-validator";
 import { serializeArazzoDocument, type ArazzoSerializationFormat } from "../../arazzo/serializer";
-import { WorkflowCanvas } from "./WorkflowCanvas";
 import { cn } from "../../lib/utils";
 import { OpenApiCapabilityIndex } from "../../workflow/capability-index";
 import { AsyncApiCapabilityIndex } from "../../workflow/asyncapi-capability-index";
@@ -19,6 +19,7 @@ import { useT } from "../../i18n";
 import { StepInspector } from "./StepInspector";
 import { ExecutionPlanPanel } from "./ExecutionPlanPanel";
 import { MockExecutionPanel } from "./MockExecutionPanel";
+import { WorkflowCanvas, type WorkflowViewMode } from "./WorkflowCanvas";
 import { CollapsibleSection } from "./CollapsibleSection";
 import type { ArazzoMockExecutionResult } from "../../workflow/mock-execution";
 
@@ -189,6 +190,9 @@ export function WorkflowStudio() {
   const [schemaDiagnostics, setSchemaDiagnostics] = useState<ArazzoDiagnostic[]>([]);
   const [executionResult, setExecutionResult] = useState<ArazzoMockExecutionResult>();
   const [playbackCursor, setPlaybackCursor] = useState(0);
+  const [viewMode, setViewMode] = useState<WorkflowViewMode>("execution");
+  const [lastStepPointer, setLastStepPointer] = useState<string>();
+  const drawerRef = useRef<HTMLDivElement | null>(null);
   const documents = registry.list();
   const active = documents.find(
     (document): document is ArazzoWorkspaceDocument =>
@@ -356,6 +360,21 @@ export function WorkflowStudio() {
     [active?.document],
   );
 
+  useEffect(
+    () => {
+      if (!selectedStepPointer) return;
+      setLastStepPointer(selectedStepPointer);
+      const onKeyDown = (event: KeyboardEvent) => {
+        if (event.key === "Escape") setSelectedStepPointer(undefined);
+      };
+      window.addEventListener("keydown", onKeyDown);
+      return () => window.removeEventListener("keydown", onKeyDown);
+    },
+    [selectedStepPointer],
+  );
+
+  const closeStepDrawer = useCallback(() => setSelectedStepPointer(undefined), []);
+
   return (
     <main className="workflow-studio" aria-labelledby="workflow-studio-title">
       <aside className="workflow-sidebar">
@@ -426,12 +445,53 @@ export function WorkflowStudio() {
               </div>
             </header>
             {resolution ? (
-              <WorkflowCanvas
-                resolution={resolution}
-                selectedStepPointer={selectedStep?.resolvedStep.step.pointer}
-                onSelectStep={setSelectedStepPointer}
-                execution={graphExecution}
-              />
+              <div
+                className="workflow-canvas-region"
+                onWheel={event => {
+                  if (!selectedStep) return;
+                  if (drawerRef.current?.contains(event.target as Node)) return;
+                  closeStepDrawer();
+                }}
+              >
+                {selectedStep ? (
+                  <div className="step-drawer-backdrop" onClick={closeStepDrawer} aria-hidden />
+                ) : null}
+                <WorkflowCanvas
+                  resolution={resolution}
+                  selectedStepPointer={selectedStep?.resolvedStep.step.pointer}
+                  onSelectStep={setSelectedStepPointer}
+                  execution={graphExecution}
+                  viewMode={viewMode}
+                  onViewModeChange={setViewMode}
+                  onOpenOperation={openOperation}
+                />
+                <div
+                  ref={drawerRef}
+                  className={cn("step-drawer", selectedStep && "open")}
+                  aria-hidden={!selectedStep}
+                >
+                  <button
+                    type="button"
+                    className="step-drawer-handle"
+                    aria-expanded={Boolean(selectedStep)}
+                    aria-label={t("workflow.closeInspector")}
+                    title={t("workflow.closeInspector")}
+                    onClick={() => setSelectedStepPointer(selectedStep ? undefined : lastStepPointer)}
+                  >
+                    <ChevronLeft size={14} />
+                    <span>{t("workflow.stepHandle")}</span>
+                  </button>
+                  {selectedStep ? (
+                    <StepInspector
+                      resolvedStep={selectedStep.resolvedStep}
+                      workflow={selectedStep.resolvedWorkflow.workflow}
+                      sourceText={active.document.sourceText}
+                      diagnostics={diagnostics}
+                      onOpenOperation={operation => openOperation(operation.documentId, operation.nodeId)}
+                    />
+                  ) : null}
+                </div>
+              </div>
             ) : null}
             <div className="canvas-guide" role="note">
               <span>{t("workflow.canvasGuide.steps")}</span>
@@ -452,15 +512,6 @@ export function WorkflowStudio() {
                 onResult={setExecutionResult}
                 onReplay={() => setPlaybackCursor(0)}
                 hasResult={Boolean(executionResult)}
-              />
-            ) : null}
-            {selectedStep ? (
-              <StepInspector
-                resolvedStep={selectedStep.resolvedStep}
-                workflow={selectedStep.resolvedWorkflow.workflow}
-                sourceText={active.document.sourceText}
-                diagnostics={diagnostics}
-                onOpenOperation={operation => openOperation(operation.documentId, operation.nodeId)}
               />
             ) : null}
             {executionPlan ? (

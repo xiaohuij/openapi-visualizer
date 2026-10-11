@@ -383,4 +383,12 @@ export const zhCN: Dictionary = {
   "inspector.url": "URL",
   "inspector.variables": "变量",
   "inspector.wrapped": "包裹",
+  "workflow.viewMode": "工作流视图模式",
+  "workflow.viewExecution": "执行视图",
+  "workflow.viewStructure": "结构视图",
+  "workflow.closeInspector": "收起步骤详情",
+  "workflow.stepHandle": "步骤",
+  "graph.chips.parameters": "{count} 参数",
+  "graph.chips.body": "请求体",
+  "workflow.backToWorkflow": "返回工作流",
 };

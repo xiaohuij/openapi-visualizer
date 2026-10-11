@@ -381,6 +381,14 @@ export const en = {
   "inspector.url": "URL",
   "inspector.variables": "Variables",
   "inspector.wrapped": "Wrapped",
+  "workflow.viewMode": "Workflow view mode",
+  "workflow.viewExecution": "Execution",
+  "workflow.viewStructure": "Structure",
+  "workflow.closeInspector": "Collapse step details",
+  "workflow.stepHandle": "STEP",
+  "graph.chips.parameters": "{count} params",
+  "graph.chips.body": "body",
+  "workflow.backToWorkflow": "Back to workflow",
 } as const;
 
 export type TranslationKey = keyof typeof en;

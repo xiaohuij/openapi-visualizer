@@ -1,5 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from "react";
-import { Languages } from "lucide-react";
+import { Languages, Waypoints } from "lucide-react";
 import { Landing } from "./components/Landing";
 import { StatusBar } from "./components/StatusBar";
 import { TopBar } from "./components/TopBar";
@@ -63,6 +63,7 @@ export function App() {
             <ApiWorkspaceSurface inspectorOpen={inspectorOpen} onToggleInspector={toggleInspector} />
           </Suspense>
           <StatusBar />
+          <BackToWorkflowButton />
           <LanguageFooter locale={locale} />
         </>
       ) : (
@@ -90,5 +91,18 @@ function LanguageFooter({ locale }: { locale: Locale }) {
         {t("footer.language")}
       </button>
     </footer>
+  );
+}
+
+function BackToWorkflowButton() {
+  const t = useT();
+  const hasArazzoDocument = useWorkflowStore(state => state.registry.listArazzo().length > 0);
+  const setSurface = useWorkflowStore(state => state.setSurface);
+  if (!hasArazzoDocument) return null;
+  return (
+    <button type="button" className="back-to-workflow" onClick={() => setSurface("workflow")}>
+      <Waypoints size={13} />
+      {t("workflow.backToWorkflow")}
+    </button>
   );
 }

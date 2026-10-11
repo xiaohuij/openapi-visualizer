@@ -133,8 +133,8 @@ export function StepInspector({
         </div>
         <span className={`workflow-target ${target.kind === "unresolved" ? "unresolved" : "resolved"}`}>
           {target.kind === "unresolved" || (target.kind === "asyncapi-target" && !target.resolved)
-            ? "unresolved"
-            : "resolved"}
+            ? t("graph.unresolved")
+            : t("graph.resolved")}
         </span>
       </header>
 
