@@ -4,6 +4,7 @@ import { cn } from "../lib/utils";
 import { useAppStore, type LayoutDirection } from "../store";
 import { loadArazzoSample, loadOpenApiSample, loadWorkspaceFile } from "../workflow/load";
 import { useWorkflowStore } from "../workflow/store";
+import { useT } from "../i18n";
 
 const METHOD_ORDER = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD", "TRACE", "QUERY"];
 const BUILTIN_METHOD_CLASSES = ["get", "post", "put", "patch", "delete", "options", "head", "trace", "query"];
@@ -14,6 +15,7 @@ function methodClass(method: string) {
 }
 
 export function TopBar() {
+  const t = useT();
   const document = useAppStore((state) => state.document);
   const fileName = useAppStore((state) => state.fileName);
   const direction = useAppStore((state) => state.direction);
@@ -66,7 +68,7 @@ export function TopBar() {
         </span>
         <div>
           <strong>OpenAPI Visualizer</strong>
-          <span>{surface === "workflow" ? "Workflow Studio" : fileName ?? "No document loaded"}</span>
+          <span>{surface === "workflow" ? t("app.workflowStudio") : fileName ?? t("app.noDocument")}</span>
         </div>
       </div>
 
@@ -75,7 +77,7 @@ export function TopBar() {
           <Search size={16} />
           <input
             value={query}
-            placeholder="Search endpoints, schemas, fields, descriptions…"
+            placeholder={t("topbar.searchPlaceholder")}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && results[0]) {
@@ -91,7 +93,7 @@ export function TopBar() {
           />
           {query.trim().length >= 2 ? (
             <div className="search-results">
-              {results.length === 0 ? <div className="search-empty">No matches</div> : null}
+              {results.length === 0 ? <div className="search-empty">{t("topbar.noMatches")}</div> : null}
               {results.map((result) => (
                 <button
                   key={result.id}
@@ -109,12 +111,12 @@ export function TopBar() {
         </div>
       ) : (
         <div className="workflow-top-status" role="status">
-          Local Arazzo workspace · {registry.list().length} documents
+          {t("topbar.localWorkspace", { count: registry.list().length })}
         </div>
       )}
 
       <div className="toolbar-groups">
-        <div className="segmented surface-switch" role="group" aria-label="Workspace surface">
+        <div className="segmented surface-switch" role="group" aria-label={t("topbar.workspaceSurface")}>
           <button
             type="button"
             className={surface === "api" ? "active" : ""}
@@ -129,7 +131,7 @@ export function TopBar() {
             onClick={() => setSurface("workflow")}
             disabled={!hasArazzoDocument}
             aria-pressed={surface === "workflow"}
-            title={hasArazzoDocument ? "Switch to Workflow Studio" : "Import an Arazzo document first"}
+            title={hasArazzoDocument ? t("topbar.switchToWorkflow") : t("topbar.importArazzoFirst")}
           >
             Flow
           </button>
@@ -142,8 +144,8 @@ export function TopBar() {
               type="button"
               className={direction === item ? "active" : ""}
               onClick={() => setDirection(item)}
-              title={item === "LR" ? "Left-to-right layout" : "Top-to-bottom layout"}
-              aria-label={item === "LR" ? "Left-to-right layout" : "Top-to-bottom layout"}
+              title={item === "LR" ? t("topbar.lrLayout") : t("topbar.tbLayout")}
+              aria-label={item === "LR" ? t("topbar.lrLayout") : t("topbar.tbLayout")}
               tabIndex={surface === "api" ? 0 : -1}
             >
               {item === "LR" ? "↔" : "↕"}
@@ -160,8 +162,8 @@ export function TopBar() {
               onClick={() => toggleMethodFilter(method)}
               title={
                 METHOD_ORDER.includes(method.toUpperCase())
-                  ? `Filter ${method} operations`
-                  : `Additional ${method} operations`
+                  ? t("topbar.filterMethod", { method })
+                  : t("topbar.additionalMethod", { method })
               }
               tabIndex={surface === "api" ? 0 : -1}
             >
@@ -175,21 +177,21 @@ export function TopBar() {
           className="ghost-button"
           onClick={resetVisualization}
           hidden={surface !== "api"}
-          title="Collapse the visualization to its first layer"
+          title={t("topbar.resetTitle")}
         >
           <RotateCcw size={15} />
-          Reset
+          {t("topbar.reset")}
         </button>
 
         <button
           type="button"
           className="ghost-button icon-button"
           onClick={toggleTheme}
-          title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-          aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+          title={theme === "dark" ? t("topbar.switchLight") : t("topbar.switchDark")}
+          aria-label={theme === "dark" ? t("topbar.switchLight") : t("topbar.switchDark")}
         >
           {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-          {theme === "dark" ? "Light" : "Dark"}
+          {theme === "dark" ? t("topbar.light") : t("topbar.dark")}
         </button>
 
         {document && surface === "api" ? (
@@ -218,13 +220,13 @@ export function TopBar() {
             }}
           >
             <Download size={15} />
-            Visual model
+            {t("topbar.visualModel")}
           </button>
         ) : null}
 
         <button type="button" className="primary-button" onClick={() => inputRef.current?.click()}>
           <FileUp size={15} />
-          Open file
+          {t("topbar.openFile")}
         </button>
         <button
           type="button"
@@ -233,7 +235,7 @@ export function TopBar() {
             loadSample();
             loadOpenApiSample();
           }}
-          title="Use the bundled Modern Petstore OpenAPI 3.2 sample"
+          title={t("topbar.petstoreTitle")}
         >
           <Dog size={15} />
           PetStore
@@ -242,7 +244,7 @@ export function TopBar() {
           type="button"
           className="ghost-button"
           onClick={loadArazzoSample}
-          title="Load the bundled OpenAPI 3.2 sample and an Arazzo 1.1 workflow"
+          title={t("topbar.petFlowTitle")}
         >
           <Waypoints size={15} />
           Pet flow

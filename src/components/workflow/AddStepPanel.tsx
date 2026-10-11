@@ -6,6 +6,7 @@ import { useWorkflowStore } from "../../workflow/store";
 import { useAppStore } from "../../store";
 import type { VisualNodeModel } from "../../types";
 import { isRecord } from "../../lib/utils";
+import { useT } from "../../i18n";
 
 function defaultValue(schema: unknown) {
   return isRecord(schema) && "default" in schema ? schema.default : "";
@@ -32,6 +33,7 @@ export function AddStepPanel({ operation }: { operation: VisualNodeModel }) {
   const setActiveArazzoDocument = useWorkflowStore((state) => state.setActiveArazzoDocument);
   const editArazzoDocument = useWorkflowStore((state) => state.editArazzoDocument);
   const setSurface = useWorkflowStore((state) => state.setSurface);
+  const t = useT();
   const [chosenArazzoId, setChosenArazzoId] = useState<string>();
   const [chosenWorkflowId, setChosenWorkflowId] = useState<string>();
   void revision;
@@ -116,21 +118,21 @@ export function AddStepPanel({ operation }: { operation: VisualNodeModel }) {
   const targetUnavailable = Boolean(operationId && boundOpenApiCount > 1 && !boundSource);
 
   return (
-    <section className="add-step-panel" aria-label="Add operation to Arazzo workflow">
+    <section className="add-step-panel" aria-label={t("addStep.title")}>
       <header>
         <Waypoints size={15} />
         <div>
-          <strong>Add to workflow</strong>
-          <p>Create an Arazzo step from this operation.</p>
+          <strong>{t("addStep.title")}</strong>
+          <p>{t("addStep.subtitle")}</p>
         </div>
       </header>
 
       {arazzoDocuments.length === 0 || workflows.length === 0 ? (
-        <p className="empty-note">Import an Arazzo document to enable workflow authoring.</p>
+        <p className="empty-note">{t("addStep.noArazzo")}</p>
       ) : (
         <>
           <label>
-            Arazzo document
+            {t("addStep.targetDocument")}
             <select value={arazzo?.id ?? ""} onChange={event => setChosenArazzoId(event.target.value)}>
               {arazzoDocuments.map(item => (
                 <option key={item.id} value={item.id}>
@@ -140,7 +142,7 @@ export function AddStepPanel({ operation }: { operation: VisualNodeModel }) {
             </select>
           </label>
           <label>
-            Workflow
+            {t("addStep.targetWorkflow")}
             <select value={workflow?.workflowId ?? ""} onChange={event => setChosenWorkflowId(event.target.value)}>
               {workflows.map(item => (
                 <option key={item.workflowId} value={item.workflowId}>
@@ -152,19 +154,19 @@ export function AddStepPanel({ operation }: { operation: VisualNodeModel }) {
 
           <dl>
             <div>
-              <dt>Step ID</dt>
+              <dt>{t("addStep.newStepId")}</dt>
               <dd>{command?.stepId ?? "—"}</dd>
             </div>
             <div>
-              <dt>Target</dt>
+              <dt>{t("step.target")}</dt>
               <dd title={command?.operationId}>{command?.operationId ?? "—"}</dd>
             </div>
             <div>
-              <dt>Initial mappings</dt>
+              <dt>{t("addStep.initialMappings")}</dt>
               <dd>
                 {requiredParameters.length > 0 || requestBody
-                  ? `${requiredParameters.length} required parameters${requestBody ? " · request body" : ""}`
-                  : "None required"}
+                  ? t("addStep.requiredSummary", { count: requiredParameters.length, body: requestBody ? t("addStep.withBody") : "" })
+                  : t("addStep.noneRequired")}
               </dd>
             </div>
           </dl>
@@ -187,7 +189,7 @@ export function AddStepPanel({ operation }: { operation: VisualNodeModel }) {
             }}
           >
             <Plus size={14} />
-            Add step
+            {t("addStep.add")}
           </button>
         </>
       )}

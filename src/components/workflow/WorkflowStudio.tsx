@@ -15,6 +15,7 @@ import { compileArazzoExecutionPlan } from "../../workflow/execution-plan";
 import type { ArazzoWorkspaceDocument, WorkspaceDocument } from "../../workflow/document-registry";
 import { useWorkflowStore } from "../../workflow/store";
 import { useAppStore } from "../../store";
+import { useT } from "../../i18n";
 import { StepInspector } from "./StepInspector";
 import { ExecutionPlanPanel } from "./ExecutionPlanPanel";
 import { MockExecutionPanel } from "./MockExecutionPanel";
@@ -63,6 +64,7 @@ function DocumentListItem({ document }: { document: WorkspaceDocument }) {
 }
 
 function SourceDescriptionBindings({ document }: { document: ArazzoWorkspaceDocument }) {
+  const t = useT();
   const registry = useWorkflowStore((state) => state.registry);
   const revision = useWorkflowStore((state) => state.revision);
   const bindSourceDescription = useWorkflowStore((state) => state.bindSourceDescription);
@@ -72,7 +74,7 @@ function SourceDescriptionBindings({ document }: { document: ArazzoWorkspaceDocu
 
   return (
     <section className="workflow-panel" aria-label="Source descriptions">
-      <h2>Source descriptions</h2>
+      <h2>{t("workflow.sourceDescriptions")}</h2>
       {document.document.sourceDescriptions.map((source) => {
         const binding = registry.getBinding(document.id, source.name);
         const candidates = registry
@@ -85,7 +87,7 @@ function SourceDescriptionBindings({ document }: { document: ArazzoWorkspaceDocu
               <span>{source.type}</span>
             </div>
             <label>
-              <span>Bound local document</span>
+              <span>{t("workflow.boundLocalDocument")}</span>
               <select
                 value={binding?.targetDocumentId ?? ""}
                 onChange={(event) => {
@@ -96,7 +98,7 @@ function SourceDescriptionBindings({ document }: { document: ArazzoWorkspaceDocu
                   }
                 }}
               >
-                <option value="">Not bound</option>
+                <option value="">{t("workflow.notBound")}</option>
                 {candidates.map((candidate) => (
                   <option key={candidate.id} value={candidate.id}>
                     {documentTitle(candidate)}
@@ -141,6 +143,7 @@ function DiagnosticsPanel({
   validationDiagnostics: ArazzoDiagnostic[];
   schemaDiagnostics: ArazzoDiagnostic[];
 }) {
+  const t = useT();
   const diagnostics = [
     ...document.diagnostics,
     ...semanticDiagnostics,
@@ -149,9 +152,9 @@ function DiagnosticsPanel({
   ];
   return (
     <section className="workflow-panel" aria-label="Arazzo diagnostics">
-      <h2>Diagnostics</h2>
+      <h2>{t("diagnostics.title")}</h2>
       {diagnostics.length === 0 ? (
-        <p className="workflow-empty-note">No diagnostics.</p>
+        <p className="workflow-empty-note">{t("collapsible.noDiagnostics")}</p>
       ) : (
         <ul className="workflow-diagnostics">
           {diagnostics.map((diagnostic, index) => (
@@ -171,6 +174,7 @@ function DiagnosticsPanel({
 }
 
 export function WorkflowStudio() {
+  const t = useT();
   const registry = useWorkflowStore((state) => state.registry);
   const revision = useWorkflowStore((state) => state.revision);
   const activeArazzoDocumentId = useWorkflowStore((state) => state.activeArazzoDocumentId);
@@ -360,9 +364,9 @@ export function WorkflowStudio() {
           <h1 id="workflow-studio-title">Workflow Studio</h1>
         </header>
         <section className="workflow-panel" aria-label="Workspace documents">
-          <h2>Documents</h2>
+          <h2>{t("workflow.documents")}</h2>
           {documents.length === 0 ? (
-            <p className="workflow-empty-note">Open an Arazzo document to start a local workflow workspace.</p>
+            <p className="workflow-empty-note">{t("workflow.noDocuments")}</p>
           ) : (
             <ul className="workflow-documents">
               {documents.map((document) => (
@@ -379,10 +383,9 @@ export function WorkflowStudio() {
         {!active?.document ? (
           <div className="workflow-empty-state">
             <FileJson2 size={32} />
-            <h2>No Arazzo document selected</h2>
+            <h2>{t("workflow.emptyTitle")}</h2>
             <p>
-              Import an Arazzo YAML or JSON file. Documents stay in this browser and source
-              description URLs are not fetched automatically.
+              {t("workflow.emptyBody")}
             </p>
           </div>
         ) : (
@@ -401,7 +404,7 @@ export function WorkflowStudio() {
                   onClick={() => undoArazzoEdit(active.id)}
                 >
                   <Undo2 size={14} />
-                  Undo
+                  {t("workflow.undo")}
                 </button>
                 <button
                   type="button"
@@ -410,7 +413,7 @@ export function WorkflowStudio() {
                   onClick={() => redoArazzoEdit(active.id)}
                 >
                   <Redo2 size={14} />
-                  Redo
+                  {t("workflow.redo")}
                 </button>
                 <button type="button" className="ghost-button" onClick={() => downloadArazzo("yaml")}>
                   <Download size={14} />
@@ -431,15 +434,15 @@ export function WorkflowStudio() {
               />
             ) : null}
             <div className="canvas-guide" role="note">
-              <span>Steps run left → right</span>
-              <span>dashed arrows = dependencies</span>
-              <span>click a step to inspect</span>
-              <span>drag background to pan · scroll to zoom</span>
+              <span>{t("workflow.canvasGuide.steps")}</span>
+              <span>{t("workflow.canvasGuide.dependencies")}</span>
+              <span>{t("workflow.canvasGuide.click")}</span>
+              <span>{t("workflow.canvasGuide.pan")}</span>
               {executionSummary ? (
                 <span className={cn("exec-summary", executionSummary.failed + executionSummary.blocked > 0 ? "has-failures" : "all-passed")}>
-                  {executionSummary.succeeded}/{executionSummary.total} succeeded
-                  {executionSummary.failed ? ` · ${executionSummary.failed} failed` : ""}
-                  {executionSummary.blocked ? ` · ${executionSummary.blocked} blocked` : ""}
+                  {t("workflow.canvasGuide.succeeded", { succeeded: executionSummary.succeeded, total: executionSummary.total })}
+                  {executionSummary.failed ? t("workflow.canvasGuide.failed", { count: executionSummary.failed }) : ""}
+                  {executionSummary.blocked ? t("workflow.canvasGuide.blocked", { count: executionSummary.blocked }) : ""}
                 </span>
               ) : null}
             </div>
@@ -461,14 +464,14 @@ export function WorkflowStudio() {
               />
             ) : null}
             {executionPlan ? (
-              <CollapsibleSection title="Static execution plan" hint="topology and bindings only">
+              <CollapsibleSection title={t("plan.title")} hint={t("collapsible.planHint")}>
                 <ExecutionPlanPanel plan={executionPlan} />
               </CollapsibleSection>
             ) : null}
             <CollapsibleSection
-              title="Workflows and steps"
-              badge={`${active.document.workflows.length} workflows`}
-              hint="text list of every step"
+              title={t("collapsible.workflowsTitle")}
+              badge={t("collapsible.workflowsBadge", { count: active.document.workflows.length })}
+              hint={t("collapsible.workflowsHint")}
             >
               <div className="workflow-list">
                 {active.document.workflows.map((workflow) => (
@@ -476,7 +479,7 @@ export function WorkflowStudio() {
                     <header>
                       <div>
                         <h3>{workflow.workflowId}</h3>
-                        <p>{workflow.summary ?? workflow.description ?? "No workflow summary"}</p>
+                        <p>{workflow.summary ?? workflow.description ?? t("workflow.noWorkflowSummary")}</p>
                       </div>
                     </header>
                     <ol className="workflow-steps">
@@ -490,21 +493,21 @@ export function WorkflowStudio() {
                               <strong>{step.stepId}</strong>
                               <span>
                                 {step.operationId
-                                  ? `operation: ${step.operationId}`
+                                  ? t("workflow.operation", { value: step.operationId })
                                   : step.operationPath
-                                    ? `operation path: ${step.operationPath}`
+                                    ? t("workflow.operationPath", { value: step.operationPath })
                                     : step.channelPath
-                                      ? `channel: ${step.channelPath}`
+                                      ? t("workflow.channel", { value: step.channelPath })
                                 : step.workflowId
-                                  ? `workflow: ${step.workflowId}`
-                                  : "No target"}
+                                  ? t("workflow.workflowTarget", { value: step.workflowId })
+                                  : t("workflow.noTarget")}
                               </span>
                               <span className={`workflow-target ${targetState(resolvedStep?.target)}`}>
                                 {targetLabel(resolvedStep?.target)}
                               </span>
-                              {step.dependsOn?.length ? <em>depends on {step.dependsOn.join(", ")}</em> : null}
+                              {step.dependsOn?.length ? <em>{t("workflow.dependsOn", { value: step.dependsOn.join(", ") })}</em> : null}
                               <button type="button" onClick={() => setSelectedStepPointer(step.pointer)}>
-                                Inspect step
+                                {t("workflow.inspectStep")}
                               </button>
                             </div>
                           </li>
@@ -516,9 +519,9 @@ export function WorkflowStudio() {
               </div>
             </CollapsibleSection>
             <CollapsibleSection
-              title="Diagnostics"
-              badge={diagnostics.length > 0 ? String(diagnostics.length) : "clean"}
-              hint="parser · schema · semantic · runtime"
+              title={t("collapsible.diagnosticsTitle")}
+              badge={diagnostics.length > 0 ? String(diagnostics.length) : t("collapsible.diagnosticsClean")}
+              hint={t("collapsible.diagnosticsHint")}
             >
               <DiagnosticsPanel
                 document={active}

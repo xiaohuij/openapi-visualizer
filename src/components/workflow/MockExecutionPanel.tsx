@@ -7,6 +7,7 @@ import {
 } from "../../workflow/mock-execution";
 import { browserDryRunArazzoRunner, type ArazzoRequestPreview } from "../../workflow/runners";
 import { cn } from "../../lib/utils";
+import { useT } from "../../i18n";
 
 const initialSource = `{\n  "inputs": {},\n  "examples": {}\n}`;
 
@@ -21,6 +22,7 @@ export function MockExecutionPanel({
   onReplay?: () => void;
   hasResult?: boolean;
 }) {
+  const t = useT();
   const [source, setSource] = useState(initialSource);
   const [error, setError] = useState<string>();
   const [result, setResult] = useState<ArazzoMockExecutionResult>();
@@ -30,14 +32,14 @@ export function MockExecutionPanel({
     <section className="workflow-panel mock-execution" aria-label="Mock workflow execution">
       <header>
         <div>
-          <h2>Mock execution</h2>
-          <p>Evaluate expressions, selectors, criteria, and actions in memory.</p>
+          <h2>{t("mock.title")}</h2>
+          <p>{t("mock.subtitle")}</p>
         </div>
-        <span><ShieldCheck size={13} /> mock only</span>
+        <span><ShieldCheck size={13} /> {t("mock.only")}</span>
       </header>
 
       <label>
-        Mock inputs and examples
+        {t("mock.inputsLabel")}
         <textarea
           value={source}
           rows={7}
@@ -46,8 +48,7 @@ export function MockExecutionPanel({
         />
       </label>
       <p className="mock-hint">
-        Provide `inputs`, per-step `examples` with `statusCode`, `response.body`, or `message.payload`.
-        Values stay in this browser and no requests are sent.
+        {t("mock.hint")}
       </p>
 
       <button
@@ -66,12 +67,12 @@ export function MockExecutionPanel({
           } catch (exception) {
             setResult(undefined);
             onResult?.(undefined);
-            setError(exception instanceof Error ? exception.message : "Unable to parse mock context.");
+            setError(exception instanceof Error ? exception.message : t("mock.parseError"));
           }
         }}
       >
         <Play size={14} />
-        Run mock
+        {t("mock.run")}
       </button>
 
       {error ? <p className="mapping-error" role="alert">{error}</p> : null}
@@ -79,7 +80,7 @@ export function MockExecutionPanel({
       {hasResult && onReplay ? (
         <button type="button" className="ghost-button replay-button" onClick={onReplay}>
           <RotateCcw size={13} />
-          Replay on graph
+          {t("mock.replay")}
         </button>
       ) : null}
 
@@ -96,7 +97,7 @@ export function MockExecutionPanel({
                       <span>
                         {step.criteria.map(criterion => `${criterion.passed ? "✓" : "✕"} ${criterion.condition}`).join(" · ")
                           || step.failureReason
-                          || "completed"}
+                          || t("mock.completed")}
                       </span>
                     </div>
                     <span className={cn("workflow-target", step.status === "succeeded" ? "resolved" : "unresolved")}>
@@ -112,12 +113,12 @@ export function MockExecutionPanel({
 
       {previews?.length ? (
         <details className="request-previews">
-          <summary>{previews.length} request preview{previews.length === 1 ? "" : "s"}</summary>
+          <summary>{previews.length === 1 ? t("mock.requestPreview", { count: previews.length }) : t("mock.requestPreviewPlural", { count: previews.length })}</summary>
           <ul>
             {previews.map(preview => (
               <li key={`${preview.workflowId}-${preview.stepId}`}>
                 <strong>{preview.method.toUpperCase()} {preview.path}</strong>
-                <span>{preview.stepId} · preview only, not sent</span>
+                <span>{t("mock.previewOnly", { stepId: preview.stepId })}</span>
               </li>
             ))}
           </ul>

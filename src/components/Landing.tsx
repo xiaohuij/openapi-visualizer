@@ -18,39 +18,40 @@ import {
   loadWorkspaceSource,
 } from "../workflow/load";
 import { useWorkflowStore } from "../workflow/store";
+import { useT } from "../i18n";
 
-const features = [
+function features(t: ReturnType<typeof useT>) {
+  return [
   {
     icon: Waypoints,
-    title: "Progressive visualization",
-    description:
-      "Expand root → paths → operations → payloads → schemas → fields without rendering an unreadable wall of nodes.",
+    title: t("landing.feature.progressive.title"),
+    description: t("landing.feature.progressive.description"),
   },
   {
     icon: GitBranch,
-    title: "True shared references",
-    description:
-      "Reusable components and $ref targets remain shared nodes, so the same schema can be reused by many operations.",
+    title: t("landing.feature.references.title"),
+    description: t("landing.feature.references.description"),
   },
   {
     icon: Layers,
-    title: "OpenAPI 2.0 → 3.2",
-    description:
-      "Paths, webhooks, QUERY and additional operations, streaming media types, hierarchical tags, security schemes, and components are normalized.",
+    title: t("landing.feature.coverage.title"),
+    description: t("landing.feature.coverage.description"),
   },
   {
     icon: ZoomIn,
-    title: "Enterprise inspection",
-    description: "Click any node to inspect parameters, schemas, constraints, source YAML, and incoming or outgoing relationships.",
+    title: t("landing.feature.inspection.title"),
+    description: t("landing.feature.inspection.description"),
   },
   {
     icon: ShieldCheck,
-    title: "Local parsing",
-    description: "YAML and JSON files are parsed in your browser; no API document is uploaded to a server.",
+    title: t("landing.feature.local.title"),
+    description: t("landing.feature.local.description"),
   },
-];
+  ];
+}
 
 export function Landing() {
+  const t = useT();
   const loadSample = useAppStore((state) => state.loadSample);
   const parseError = useAppStore((state) => state.parseError);
   const workflowError = useWorkflowStore((state) => state.lastError);
@@ -83,16 +84,13 @@ export function Landing() {
           OpenAPI 2.0 · 3.0 · 3.1 · 3.2
         </span>
         <h1>
-          Turn large OpenAPI YAML into an <em>explorable visual model</em>
+          {t("landing.headline1")} <em>{t("landing.headline2")}</em>
         </h1>
-        <p>
-          Load a standard OpenAPI or Swagger JSON/YAML document and expand it layer by layer. Endpoints, request bodies,
-          response models, reusable parameters, security schemes, and shared schemas become one connected architecture map.
-        </p>
+        <p>{t("landing.subhead")}</p>
         <div className="hero-actions">
           <button className="primary-button large" onClick={() => inputRef.current?.click()}>
             <FileUp size={17} />
-            Open YAML / JSON
+            {t("landing.openYaml")}
           </button>
           <button
             className="ghost-button large"
@@ -102,11 +100,11 @@ export function Landing() {
             }}
           >
             <Dog size={17} />
-            Try PetStore sample
+            {t("landing.tryPetstore")}
           </button>
           <button className="ghost-button large" onClick={loadArazzoSample}>
             <Waypoints size={17} />
-            Try Arazzo workflow
+            {t("landing.tryArazzo")}
           </button>
         </div>
         <input
@@ -129,12 +127,12 @@ export function Landing() {
       </section>
 
       <section className="paste-panel">
-        <label htmlFor="paste">Or paste an OpenAPI or Arazzo document</label>
+        <label htmlFor="paste">{t("landing.pasteLabel")}</label>
         <textarea
           id="paste"
           value={pasted}
           spellCheck={false}
-          placeholder={"openapi: 3.2.0\ninfo:\n  title: My API\npaths:\n  /resources:\n    get: {}"}
+          placeholder={t("landing.pastePlaceholder")}
           onChange={(event) => setPasted(event.target.value)}
         />
         <button
@@ -142,12 +140,12 @@ export function Landing() {
           disabled={pasted.trim().length === 0}
           onClick={() => loadWorkspaceSource(pasted, "pasted-document.yaml")}
         >
-          Build visualization
+          {t("landing.build")}
         </button>
       </section>
 
       <section className="feature-grid">
-        {features.map((feature) => (
+        {features(t).map((feature) => (
           <article key={feature.title}>
             <span>
               <feature.icon size={19} />

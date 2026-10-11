@@ -4,6 +4,7 @@ import type { ArazzoResolvedStep } from "../../arazzo/semantic-resolver";
 import type { ArazzoStep, ArazzoWorkflow } from "../../arazzo/types";
 import type { ArazzoStepPatch } from "../../workflow/commands";
 import { useWorkflowStore } from "../../workflow/store";
+import { useT } from "../../i18n";
 
 export function AsyncStepEditor({
   resolvedStep,
@@ -12,6 +13,7 @@ export function AsyncStepEditor({
   resolvedStep: ArazzoResolvedStep;
   workflow: ArazzoWorkflow;
 }) {
+  const t = useT();
   const editArazzoDocument = useWorkflowStore((state) => state.editArazzoDocument);
   const step = resolvedStep.step;
   const target = resolvedStep.target;
@@ -47,7 +49,7 @@ export function AsyncStepEditor({
       onSubmit={event => {
         event.preventDefault();
         if (timeout.trim() && (!Number.isInteger(Number(timeout)) || Number(timeout) < 0)) {
-          setError("Timeout must be a non-negative integer.");
+          setError(t("asyncEditor.error.timeout"));
           return;
         }
 
@@ -57,33 +59,33 @@ export function AsyncStepEditor({
           stepId: step.stepId,
           patch,
         });
-        setError(applied ? undefined : useWorkflowStore.getState().lastError ?? "Unable to save async step.");
+        setError(applied ? undefined : useWorkflowStore.getState().lastError ?? t("asyncEditor.error.save"));
       }}
     >
       <header>
         <Radio size={15} />
         <div>
-          <h3>Async messaging</h3>
-          <p>Model send/receive behavior, correlation, and bounded waits.</p>
+          <h3>{t("step.asyncMessaging")}</h3>
+          <p>{t("step.asyncMessagingHint")}</p>
         </div>
       </header>
 
       <div className="async-fields">
         <label>
-          Action
+          {t("step.action")}
           <select
             value={action}
             onChange={event => setAction(event.target.value === "send" || event.target.value === "receive"
               ? event.target.value
               : "")}
           >
-            <option value="">Not set</option>
+            <option value="">{t("workflow.notBound")}</option>
             <option value="send">send</option>
             <option value="receive">receive</option>
           </select>
         </label>
         <label>
-          Correlation ID
+          {t("step.correlationId")}
           <input
             value={correlationId}
             placeholder="$inputs.correlationId"
@@ -91,7 +93,7 @@ export function AsyncStepEditor({
           />
         </label>
         <label>
-          Timeout (ms)
+          {t("step.timeout")}
           <input
             value={timeout}
             inputMode="numeric"
@@ -102,13 +104,13 @@ export function AsyncStepEditor({
       </div>
 
       {target.kind === "asyncapi-target" && !target.resolved ? (
-        <p className="binding-warning">The AsyncAPI source is not bound locally; modeling remains available.</p>
+        <p className="binding-warning">{t("asyncEditor.unboundWarning")}</p>
       ) : null}
       {error ? <p className="mapping-error" role="alert">{error}</p> : null}
 
       <button type="submit" className="primary-button" disabled={!dirty}>
         <Save size={14} />
-        Apply async settings
+        {t("step.applyAsync")}
       </button>
     </form>
   );

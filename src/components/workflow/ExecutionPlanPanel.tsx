@@ -1,31 +1,33 @@
 import { CircleOff, ShieldCheck } from "lucide-react";
 import type { ArazzoExecutionPlan, ArazzoExecutionStep } from "../../workflow/execution-plan";
 import { cn } from "../../lib/utils";
+import { useT } from "../../i18n";
 
-function targetLabel(step: ArazzoExecutionStep) {
+function targetLabel(step: ArazzoExecutionStep, t: ReturnType<typeof useT>) {
   const target = step.target;
   if (target.kind === "openapi-operation") return `${target.method.toUpperCase()} ${target.path}`;
-  if (target.kind === "workflow") return `workflow · ${target.workflowId}`;
+  if (target.kind === "workflow") return `${t("exec.workflowLabel")} · ${target.workflowId}`;
   if (target.kind === "asyncapi-target") {
     if (target.channelId) {
-      return `${target.bound ? "async" : "unbound async"} · ${target.action ?? "?"} ${target.channelId}`;
+      return `${target.bound ? t("exec.async") : t("exec.unboundAsync")} · ${target.action ?? "?"} ${target.channelId}`;
     }
-    return `${target.bound ? "async" : "unbound async"} · ${target.reference}`;
+    return `${target.bound ? t("exec.async") : t("exec.unboundAsync")} · ${target.reference}`;
   }
   return target.reason;
 }
 
 export function ExecutionPlanPanel({ plan }: { plan: ArazzoExecutionPlan }) {
+  const t = useT();
   return (
-    <section className="workflow-panel execution-plan" aria-label="Static execution plan">
+    <section className="workflow-panel execution-plan" aria-label={t("plan.title")}>
       <header>
         <div>
-          <h2>Static execution plan</h2>
-          <p>Topology and bindings only — no requests are prepared or sent.</p>
+          <h2>{t("plan.title")}</h2>
+          <p>{t("plan.subtitle")}</p>
         </div>
         <div className="execution-policy">
-          <span><ShieldCheck size={13} /> static only</span>
-          <span><CircleOff size={13} /> no fetching</span>
+          <span><ShieldCheck size={13} /> {t("plan.staticOnly")}</span>
+          <span><CircleOff size={13} /> {t("plan.noFetching")}</span>
         </div>
       </header>
 
@@ -33,17 +35,17 @@ export function ExecutionPlanPanel({ plan }: { plan: ArazzoExecutionPlan }) {
         <article key={workflow.pointer}>
           <header>
             <h3>{workflow.workflowId}</h3>
-            {workflow.cyclic ? <span className="workflow-target unresolved">cyclic</span> : null}
+            {workflow.cyclic ? <span className="workflow-target unresolved">{t("exec.cyclic")}</span> : null}
           </header>
           <ol>
             {workflow.steps.map(step => (
               <li key={step.pointer}>
                 <div>
                   <strong>{step.topologicalIndex + 1}. {step.stepId}</strong>
-                  <span>{targetLabel(step)}</span>
+                  <span>{targetLabel(step, t)}</span>
                 </div>
                 <span className={cn("workflow-target", step.resolved ? "resolved" : "unresolved")}>
-                  {step.resolved ? "ready" : "blocked"}
+                  {step.resolved ? t("plan.ready") : t("plan.blocked")}
                 </span>
               </li>
             ))}
@@ -53,7 +55,7 @@ export function ExecutionPlanPanel({ plan }: { plan: ArazzoExecutionPlan }) {
 
       {plan.unresolvedTargets.length > 0 ? (
         <div className="execution-unresolved" role="status">
-          <strong>{plan.unresolvedTargets.length} unresolved binding{plan.unresolvedTargets.length === 1 ? "" : "s"}</strong>
+          <strong>{t("plan.unresolvedBindings", { count: plan.unresolvedTargets.length })}</strong>
           <ul>
             {plan.unresolvedTargets.map(target => (
               <li key={`${target.workflowId}-${target.stepId}`}>

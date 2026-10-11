@@ -9,11 +9,12 @@ import { arazzoOutputEntries } from "../../arazzo/outputs";
 import type { ArazzoWorkflow } from "../../arazzo/types";
 import type { OpenApiOperationCapability } from "../../workflow/capability-index";
 import { getText } from "../../lib/utils";
+import { useT } from "../../i18n";
 import { AsyncStepEditor } from "./AsyncStepEditor";
 import { DependencyEditor } from "./DependencyEditor";
 import { StepMappingsEditor } from "./StepMappingsEditor";
 
-function targetTitle(target: ArazzoStepTarget) {
+function targetTitle(target: ArazzoStepTarget, t: ReturnType<typeof useT>) {
   if (target.kind === "openapi-operation") {
     return target.operation.operationId ?? `${target.operation.method} ${target.operation.path}`;
   }
@@ -23,46 +24,46 @@ function targetTitle(target: ArazzoStepTarget) {
       ? `${target.operation.channelId} · ${target.operation.action}`
       : target.reference;
   }
-  return "Unresolved target";
+  return t("workflow.noTarget");
 }
 
-function targetDetails(target: ArazzoStepTarget) {
+function targetDetails(target: ArazzoStepTarget, t: ReturnType<typeof useT>) {
   if (target.kind === "openapi-operation") {
     return [
-      ["Source", target.sourceName],
-      ["Operation", `${target.operation.method.toUpperCase()} ${target.operation.path}`],
-      ["Document", target.operation.documentId],
+      [t("inspector.source"), target.sourceName],
+      [t("step.operationLabel"), `${target.operation.method.toUpperCase()} ${target.operation.path}`],
+      [t("step.document"), target.operation.documentId],
     ] as const;
   }
   if (target.kind === "workflow") {
     return [
-      ["Workflow", target.workflowId],
-      ["Source", target.sourceName ?? "Current document"],
-      ["Document", target.targetDocumentId],
+      [t("step.workflow"), target.workflowId],
+      [t("inspector.source"), target.sourceName ?? t("step.currentDocument")],
+      [t("step.document"), target.targetDocumentId],
     ] as const;
   }
   if (target.kind === "asyncapi-target") {
     const entries = [
-      ["Source", target.sourceName],
-      ["Reference", target.reference],
-      ["Status", target.resolved ? "bound locally" : "unbound"],
+      [t("inspector.source"), target.sourceName],
+      [t("step.reference"), target.reference],
+      [t("step.status"), target.resolved ? t("step.boundLocally") : t("step.unbound")],
     ] as Array<readonly [string, unknown]>;
     if (target.operation) {
       entries.push(
-        ["Channel", target.operation.channelId],
-        ["Channel address", target.operation.channelAddress ?? "—"],
-        ["Action", target.operation.specificationVersion === "2"
+        [t("step.channel"), target.operation.channelId],
+        [t("step.channelAddress"), target.operation.channelAddress ?? "—"],
+        [t("step.action"), target.operation.specificationVersion === "2"
           ? `${target.operation.action} (${target.operation.normalizedAction})`
           : target.operation.action],
-        ["Operation", target.operation.operationId ?? "—"],
-        ["Document", target.operation.documentId],
-        ["Messages", target.operation.messages.map(message => message.name).join(", ") || "—"],
-        ["Payload schema", target.operation.messages[0]?.payload ?? "—"],
+        [t("step.operationLabel"), target.operation.operationId ?? "—"],
+        [t("step.document"), target.operation.documentId],
+        [t("step.messages"), target.operation.messages.map(message => message.name).join(", ") || "—"],
+        [t("step.payloadSchema"), target.operation.messages[0]?.payload ?? "—"],
       );
     }
     return entries;
   }
-  return [["Reason", target.reason]] as const;
+  return [[t("step.reason"), target.reason]] as const;
 }
 
 function DataList({ entries }: { entries: ReadonlyArray<readonly [string, unknown]> }) {
@@ -79,8 +80,9 @@ function DataList({ entries }: { entries: ReadonlyArray<readonly [string, unknow
 }
 
 function DiagnosticList({ diagnostics }: { diagnostics: ArazzoDiagnostic[] }) {
+  const t = useT();
   if (diagnostics.length === 0) {
-    return <p className="workflow-empty-note">No diagnostics for this step.</p>;
+    return <p className="workflow-empty-note">{t("step.noStepDiagnostics")}</p>;
   }
   return (
     <ul className="workflow-diagnostics">
@@ -111,6 +113,7 @@ export function StepInspector({
   diagnostics: ArazzoDiagnostic[];
   onOpenOperation: (operation: OpenApiOperationCapability) => void;
 }) {
+  const t = useT();
   const step = resolvedStep.step;
   const target = resolvedStep.target;
   const outputs = arazzoOutputEntries(step.outputs);
@@ -125,7 +128,7 @@ export function StepInspector({
     <aside className="workflow-panel step-inspector" aria-label={`Step ${step.stepId} details`}>
       <header>
         <div>
-          <span>Step inspector</span>
+          <span>{t("step.inspector")}</span>
           <h2>{step.stepId}</h2>
         </div>
         <span className={`workflow-target ${target.kind === "unresolved" ? "unresolved" : "resolved"}`}>
@@ -135,19 +138,19 @@ export function StepInspector({
         </span>
       </header>
 
-      <p className="step-description">{step.description ?? "No step description."}</p>
+      <p className="step-description">{step.description ?? t("step.noDescription")}</p>
 
       <section>
-        <h3>Target</h3>
+        <h3>{t("step.target")}</h3>
         <div className="step-target-card">
           <div>
-            <strong>{targetTitle(target)}</strong>
-            <DataList entries={targetDetails(target)} />
+            <strong>{targetTitle(target, t)}</strong>
+            <DataList entries={targetDetails(target, t)} />
           </div>
           {target.kind === "openapi-operation" ? (
             <button type="button" className="ghost-button" onClick={() => onOpenOperation(target.operation)}>
               <ExternalLink size={14} />
-              Open operation
+              {t("step.openOperation")}
             </button>
           ) : null}
         </div>
@@ -160,20 +163,20 @@ export function StepInspector({
 
       {successActions.length > 0 || failureActions.length > 0 ? (
         <section>
-          <h3>Actions</h3>
+          <h3>{t("step.actions")}</h3>
           <ul className="workflow-mappings">
             {successActions.map((action, index) => (
               <li key={`success-${index}`}>
                 <strong>onSuccess</strong>
-                <span>{action.type ?? "unspecified"}</span>
-                <code>{action.stepId ?? action.workflowId ?? "implicit"}</code>
+                <span>{action.type ?? t("step.unspecified")}</span>
+                <code>{action.stepId ?? action.workflowId ?? t("step.implicit")}</code>
               </li>
             ))}
             {failureActions.map((action, index) => (
               <li key={`failure-${index}`}>
                 <strong>onFailure</strong>
-                <span>{action.type ?? "unspecified"}</span>
-                <code>{action.stepId ?? action.workflowId ?? "implicit"}</code>
+                <span>{action.type ?? t("step.unspecified")}</span>
+                <code>{action.stepId ?? action.workflowId ?? t("step.implicit")}</code>
               </li>
             ))}
           </ul>
@@ -182,12 +185,12 @@ export function StepInspector({
 
       {outputs.length > 0 ? (
         <section>
-          <h3>Outputs</h3>
+          <h3>{t("step.outputs")}</h3>
           <ul className="workflow-mappings">
             {outputs.map((output) => (
               <li key={output.name}>
                 <strong>{output.name}</strong>
-                <span>{output.selector?.type ?? "value"}</span>
+                <span>{output.selector?.type ?? t("step.value")}</span>
                 <code>{output.selector?.selector ?? output.selector?.query ?? "—"}</code>
               </li>
             ))}
@@ -196,14 +199,14 @@ export function StepInspector({
       ) : null}
 
       <section>
-        <h3>Source</h3>
+        <h3>{t("step.source")}</h3>
         <pre className="step-source">
-          <code>{sourceSnippet ?? "Source range unavailable."}</code>
+          <code>{sourceSnippet ?? t("step.sourceUnavailable")}</code>
         </pre>
       </section>
 
       <section>
-        <h3>Diagnostics</h3>
+        <h3>{t("step.diagnostics")}</h3>
         <DiagnosticList diagnostics={stepDiagnostics} />
       </section>
 

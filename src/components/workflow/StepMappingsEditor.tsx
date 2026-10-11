@@ -9,6 +9,7 @@ import type { ArazzoWorkflow } from "../../arazzo/types";
 import type { ArazzoStepPatch } from "../../workflow/commands";
 import { useWorkflowStore } from "../../workflow/store";
 import { isRecord } from "../../lib/utils";
+import { useT } from "../../i18n";
 
 interface ParameterDraft {
   name: string;
@@ -68,6 +69,7 @@ export function StepMappingsEditor({
 }) {
   const editArazzoDocument = useWorkflowStore((state) => state.editArazzoDocument);
   const step = resolvedStep.step;
+  const t = useT();
   const [parameters, setParameters] = useState<ParameterDraft[]>(() =>
     parameterDrafts(step.parameters),
   );
@@ -138,18 +140,18 @@ export function StepMappingsEditor({
 
   const submit = () => {
     if (parameters.some(parameter => !parameter.name.trim())) {
-      setError("Every parameter needs a name.");
+      setError(t("map.error.nameRequired"));
       return;
     }
     if (requestBodyEnabled && !contentType.trim()) {
-      setError("Request body needs a content type.");
+      setError(t("map.error.contentTypeRequired"));
       return;
     }
     let patch: ArazzoStepPatch | undefined;
     try {
       patch = nextPatch();
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "Unable to parse mapping value.");
+      setError(exception instanceof Error ? exception.message : t("map.error.parse"));
       return;
     }
 
@@ -161,7 +163,7 @@ export function StepMappingsEditor({
       patch,
     });
     if (!applied) {
-      setError(useWorkflowStore.getState().lastError ?? "Unable to save mappings.");
+      setError(useWorkflowStore.getState().lastError ?? t("map.error.save"));
       return;
     }
     setError(undefined);
@@ -177,8 +179,8 @@ export function StepMappingsEditor({
     >
       <header>
         <div>
-          <h3>Parameter and request-body mappings</h3>
-          <p>Use `$` runtime expressions or JSON/YAML static values.</p>
+          <h3>{t("map.title")}</h3>
+          <p>{t("map.hint")}</p>
         </div>
         {missingRequired.length > 0 ? (
           <button
@@ -187,20 +189,20 @@ export function StepMappingsEditor({
             onClick={() => setParameters(current => [...current, ...missingRequired])}
           >
             <Plus size={13} />
-            Add required
+            {t("map.addRequired")}
           </button>
         ) : null}
       </header>
 
       <div className="mapping-rows" role="list" aria-label="Parameter mappings">
         {parameters.length === 0 ? (
-          <p className="empty-note">No parameter mappings.</p>
+          <p className="empty-note">{t("map.noParameters")}</p>
         ) : parameters.map((parameter, index) => {
           const capability = schemaFor(parameter);
           return (
             <div className="mapping-row" role="listitem" key={`${parameter.name}-${index}`}>
               <label>
-                Name
+                {t("map.name")}
                 <input
                   value={parameter.name}
                   onChange={event => setParameters(current => current.map((item, itemIndex) =>
@@ -209,7 +211,7 @@ export function StepMappingsEditor({
                 />
               </label>
               <label>
-                In
+                {t("map.in")}
                 <input
                   value={parameter.in}
                   placeholder="query"
@@ -219,7 +221,7 @@ export function StepMappingsEditor({
                 />
               </label>
               <label className="wide">
-                Value
+                {t("map.value")}
                 <input
                   value={parameter.value}
                   onChange={event => setParameters(current => current.map((item, itemIndex) =>
@@ -228,13 +230,13 @@ export function StepMappingsEditor({
                 />
               </label>
               <div className="mapping-meta">
-                <span>{capability ? schemaType(capability.schema) : "unmatched"}</span>
-                {capability?.required ? <strong>required</strong> : null}
+                <span>{capability ? schemaType(capability.schema) : t("map.unmatched")}</span>
+                {capability?.required ? <strong>{t("map.requiredTag")}</strong> : null}
               </div>
               <button
                 type="button"
                 className="icon-button"
-                aria-label={`Remove parameter ${parameter.name || index + 1}`}
+                aria-label={t("map.removeParameter", { name: parameter.name || index + 1 })}
                 onClick={() => setParameters(current => current.filter((_, itemIndex) => itemIndex !== index))}
               >
                 <Trash2 size={13} />
@@ -250,7 +252,7 @@ export function StepMappingsEditor({
         onClick={() => setParameters(current => [...current, { name: "", in: "", value: "" }])}
       >
         <Plus size={13} />
-        Add parameter
+        {t("map.addParameter")}
       </button>
 
       <div className="request-body-editor">
@@ -260,12 +262,12 @@ export function StepMappingsEditor({
             checked={requestBodyEnabled}
             onChange={event => setRequestBodyEnabled(event.target.checked)}
           />
-          <span>Send a request body</span>
+          <span>{t("map.sendBody")}</span>
         </label>
         {requestBodyEnabled ? (
           <>
             <label>
-              Content type
+              {t("map.contentType")}
               {operationRequestBody?.content.length ? (
                 <select value={contentType} onChange={event => setContentType(event.target.value)}>
                   {operationRequestBody.content.map(content => (
@@ -282,7 +284,7 @@ export function StepMappingsEditor({
               )}
             </label>
             <label>
-              Payload
+              {t("map.payload")}
               <textarea
                 value={payload}
                 rows={5}
@@ -297,7 +299,7 @@ export function StepMappingsEditor({
       {error ? <p className="mapping-error" role="alert">{error}</p> : null}
       <button type="submit" className="primary-button" disabled={!dirty}>
         <Check size={14} />
-        Apply mappings
+        {t("map.apply")}
       </button>
     </form>
   );

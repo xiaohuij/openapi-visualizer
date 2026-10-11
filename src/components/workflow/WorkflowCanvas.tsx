@@ -34,6 +34,7 @@ import {
 import type { ArazzoResolution } from "../../arazzo/semantic-resolver";
 import { useAppStore } from "../../store";
 import { cn } from "../../lib/utils";
+import { useT } from "../../i18n";
 
 interface WorkflowGraphNodeData {
   model: ArazzoGraphNode;
@@ -82,34 +83,39 @@ function iconFor(kind: ArazzoGraphNodeType) {
   }
 }
 
-function typeLabel(kind: ArazzoGraphNodeType) {
+function typeLabel(kind: ArazzoGraphNodeType, t: ReturnType<typeof useT>) {
   switch (kind) {
     case "operation-target":
-      return "Operation";
+      return t("graph.operation");
     case "workflow-target":
-      return "Workflow target";
+      return t("graph.workflowTarget");
     case "asyncapi-target":
-      return "Async target";
+      return t("graph.asyncTarget");
     case "unresolved-target":
-      return "Unresolved";
+      return t("graph.unresolved");
     default:
-      return kind[0].toUpperCase() + kind.slice(1);
+      return kind === "document" ? t("graph.document")
+        : kind === "workflow" ? t("graph.workflow")
+        : kind === "step" ? t("graph.step")
+        : kind === "source" ? t("graph.document")
+        : kind;
   }
 }
 
-function statusLabel(model: ArazzoGraphNode) {
-  if (model.kind === "unresolved-target") return "unresolved";
-  if (model.kind === "asyncapi-target") return model.resolved ? "bound" : "unbound";
-  if (model.kind === "step") return model.resolved ? "resolved" : "unresolved";
-  if (model.kind === "source") return model.resolved ? "bound" : "unbound";
+function statusLabel(model: ArazzoGraphNode, t: ReturnType<typeof useT>) {
+  if (model.kind === "unresolved-target") return t("graph.unresolved");
+  if (model.kind === "asyncapi-target") return model.resolved ? t("graph.bound") : t("graph.unbound");
+  if (model.kind === "step") return model.resolved ? t("graph.resolved") : t("graph.unresolved");
+  if (model.kind === "source") return model.resolved ? t("graph.bound") : t("graph.unbound");
   return undefined;
 }
 
 function WorkflowGraphNode({ data }: NodeProps) {
+  const t = useT();
   const nodeData = data as unknown as WorkflowGraphNodeData;
   const model = nodeData.model;
   const Icon = iconFor(model.kind);
-  const status = statusLabel(model);
+  const status = statusLabel(model, t);
 
   return (
     <div
@@ -133,7 +139,7 @@ function WorkflowGraphNode({ data }: NodeProps) {
         </div>
       </div>
       <div className="workflow-graph-node-footer">
-        <span>{typeLabel(model.kind)}</span>
+        <span>{typeLabel(model.kind, t)}</span>
         {status ? <span className={cn("workflow-target", status)}>{status}</span> : null}
       </div>
       <Handle type="source" position={Position.Right} id="right" />
@@ -191,6 +197,7 @@ function Canvas({
     activePointer?: string;
   };
 }) {
+  const t = useT();
   const theme = useAppStore((state) => state.theme);
   const { fitView } = useReactFlow();
   const graph = useMemo(() => buildArazzoWorkflowGraph(resolution), [resolution]);
@@ -217,7 +224,7 @@ function Canvas({
       sourceHandle: "right",
       targetHandle: "left",
       type: "smoothstep",
-      label: edge.relation === "contains" ? undefined : edge.relation.replace("-on", " on").replace("-", " "),
+      label: edge.relation === "contains" ? undefined : ({ "depends-on": t("graph.dependsOn"), "operation-call": t("graph.operationCall"), "workflow-call": t("graph.workflowCall"), "channel-call": t("graph.channelCall"), "unresolved-call": t("graph.unresolvedCall") } as Record<string, string>)[edge.relation],
       className: `workflow-graph-edge-${edge.relation}`,
       style: edgeStyles[edge.relation],
     })) satisfies Edge[];

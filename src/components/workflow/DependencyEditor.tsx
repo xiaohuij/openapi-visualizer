@@ -2,6 +2,7 @@ import { GitBranch, Save } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ArazzoStep, ArazzoWorkflow } from "../../arazzo/types";
 import { useWorkflowStore } from "../../workflow/store";
+import { useT } from "../../i18n";
 
 export function DependencyEditor({
   workflow,
@@ -10,6 +11,7 @@ export function DependencyEditor({
   workflow: ArazzoWorkflow;
   step: ArazzoStep;
 }) {
+  const t = useT();
   const editArazzoDocument = useWorkflowStore((state) => state.editArazzoDocument);
   const [dependencies, setDependencies] = useState<string[]>(step.dependsOn ?? []);
 
@@ -36,15 +38,15 @@ export function DependencyEditor({
       <header>
         <GitBranch size={15} />
         <div>
-          <h3>DAG dependencies</h3>
-          <p>Select every prerequisite. Multiple prerequisites form a join.</p>
+          <h3>{t("dep.title")}</h3>
+          <p>{t("dep.hint")}</p>
         </div>
       </header>
 
       {candidates.length === 0 ? (
-        <p className="empty-note">This workflow has no other steps.</p>
+        <p className="empty-note">{t("dep.noOtherSteps")}</p>
       ) : (
-        <div className="dependency-options" role="group" aria-label={`Dependencies for ${step.stepId}`}>
+        <div className="dependency-options" role="group" aria-label={t("dep.groupFor", { stepId: step.stepId })}>
           {candidates.map(candidate => (
             <label key={candidate.stepId}>
               <input
@@ -64,7 +66,7 @@ export function DependencyEditor({
 
       <button type="submit" className="primary-button" disabled={!dirty}>
         <Save size={14} />
-        Apply dependencies
+        {t("dep.apply")}
       </button>
     </form>
   );

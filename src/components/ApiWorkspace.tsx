@@ -1,5 +1,6 @@
 import { VisualizerCanvas } from "./VisualizerCanvas";
 import { InspectorPanel } from "./InspectorPanel";
+import { useT } from "../i18n";
 
 export function ApiWorkspace({
   inspectorOpen,
@@ -8,18 +9,19 @@ export function ApiWorkspace({
   inspectorOpen: boolean;
   onToggleInspector: () => void;
 }) {
+  const t = useT();
   return (
     <main className={`workspace${inspectorOpen ? " inspector-open" : ""}`}>
       <section className="visualizer-shell">
         <VisualizerCanvas />
         <div className="legend">
-          <span className="legend-title">Relationships</span>
-          <span className="legend-item contains">containment</span>
-          <span className="legend-item request">request</span>
-          <span className="legend-item response">response</span>
-          <span className="legend-item ref">$ref / schema</span>
-          <span className="legend-item security">security</span>
-          <span className="legend-item tag">tag</span>
+          <span className="legend-title">{t("legend.relationships")}</span>
+          <span className="legend-item contains">{t("legend.contains")}</span>
+          <span className="legend-item request">{t("legend.request")}</span>
+          <span className="legend-item response">{t("legend.response")}</span>
+          <span className="legend-item ref">{t("legend.ref")}</span>
+          <span className="legend-item security">{t("legend.security")}</span>
+          <span className="legend-item tag">{t("legend.tag")}</span>
         </div>
       </section>
       <InspectorPanel open={inspectorOpen} onToggle={onToggleInspector} />

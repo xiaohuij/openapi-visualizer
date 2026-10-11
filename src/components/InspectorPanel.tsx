@@ -21,6 +21,7 @@ import { useAppStore } from "../store";
 import { AddStepPanel } from "./workflow/AddStepPanel";
 import type { VisualNodeModel } from "../types";
 import { isRecord, prettyPointer, schemaType, truncate } from "../lib/utils";
+import { useT } from "../i18n";
 
 type InspectorTab = "definition" | "source" | "relations";
 
@@ -127,9 +128,9 @@ function DataTable({ headers, rows }: { headers: string[]; rows: React.ReactNode
   );
 }
 
-function exampleRows(examples: unknown): React.ReactNode[][] {
+function exampleRows(examples: unknown, t: ReturnType<typeof useT>): React.ReactNode[][] {
   if (!isRecord(examples) || Object.keys(examples).length === 0) {
-    return [["—", "—", "—", "No named examples"] as React.ReactNode[]];
+    return [["—", "—", "—", t("inspector.noNamedExamples")] as React.ReactNode[]];
   }
   return Object.entries(examples).map(([name, example]) => {
     if (!isRecord(example)) return [name, "—", "inline", displayValue(example)] as React.ReactNode[];
@@ -200,7 +201,7 @@ function encodingRows(value: unknown): React.ReactNode[][] {
   ]);
 }
 
-function oauthFlowRows(flows: Record<string, unknown>): React.ReactNode[][] {
+function oauthFlowRows(flows: Record<string, unknown>, t: ReturnType<typeof useT>): React.ReactNode[][] {
   const rows = Object.entries(flows).map(([name, flow]) => {
     const record = isRecord(flow) ? flow : {};
     return [
@@ -211,7 +212,7 @@ function oauthFlowRows(flows: Record<string, unknown>): React.ReactNode[][] {
       Object.keys(isRecord(record.scopes) ? record.scopes : {}).join(", ") || "—",
     ] as React.ReactNode[];
   });
-  return rows.length > 0 ? rows : [["—", "—", "—", "—", "No OAuth flows"] as React.ReactNode[]];
+  return rows.length > 0 ? rows : [["—", "—", "—", "—", t("inspector.noOauthFlows")] as React.ReactNode[]];
 }
 
 function inspectorIcon(model: VisualNodeModel) {
@@ -250,6 +251,7 @@ interface InspectorPanelProps {
 }
 
 export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
+  const t = useT();
   const document = useAppStore((state) => state.document);
   const selectedId = useAppStore((state) => state.selectedId);
   const revealNode = useAppStore((state) => state.revealNode);
@@ -298,8 +300,8 @@ export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
       ? `Collapse details for ${model.title}`
       : `Expand details for ${model.title}`
     : open
-      ? "Collapse details"
-      : "Expand details";
+      ? t("inspector.collapseDetails")
+      : t("inspector.expandDetails");
   const toggleButton = (
     <button
       ref={toggleRef}
@@ -312,16 +314,16 @@ export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
       onClick={toggleInspector}
     >
       {open ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
-      <span className="inspector-toggle-label">Details</span>
+      <span className="inspector-toggle-label">{t("inspector.details")}</span>
     </button>
   );
 
   if (!document || !model) {
     return (
-      <section className={`inspector-drawer${open ? " open" : ""}`} aria-label="Details drawer">
+      <section className={`inspector-drawer${open ? " open" : ""}`} aria-label={t("inspector.detailsDrawer")}>
         {toggleButton}
         <aside id="inspector-panel" ref={panelRef} className="inspector empty" aria-hidden={!open}>
-          No selection
+          {t("inspector.noSelection")}
         </aside>
       </section>
     );
@@ -331,7 +333,7 @@ export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
   const record = isRecord(value) ? value : {};
 
   return (
-    <section className={`inspector-drawer${open ? " open" : ""}`} aria-label="Details drawer">
+    <section className={`inspector-drawer${open ? " open" : ""}`} aria-label={t("inspector.detailsDrawer")}>
       {toggleButton}
       <aside id="inspector-panel" ref={panelRef} className="inspector" aria-hidden={!open}>
       <header className="inspector-header">
@@ -347,7 +349,7 @@ export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
         <div className="tab-strip">
           {(["definition", "source", "relations"] as InspectorTab[]).map((item) => (
             <button key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>
-              {item}
+              {t(`inspector.tab.${item}`)}
             </button>
           ))}
         </div>
@@ -357,40 +359,40 @@ export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
         {tab === "definition" ? (
           <>
             {model.description ? (
-              <Section title="Description">
+              <Section title={t("inspector.description")}>
                 <p className="description">{model.description}</p>
               </Section>
             ) : null}
 
             {model.kind === "root" ? (
               <>
-                <Section title="Document">
+                <Section title={t("inspector.document")}>
                   <KeyValue
                     entries={[
-                      ["File", document.fileName],
-                      ["Specification", document.stats.specification],
+                      [t("inspector.file"), document.fileName],
+                      [t("inspector.specification"), document.stats.specification],
                       ["$self", document.raw.$self],
-                      ["JSON Schema dialect", document.raw.jsonSchemaDialect],
-                      ["Title", isRecord(document.raw.info) ? document.raw.info.title : "—"],
-                      ["Version", isRecord(document.raw.info) ? document.raw.info.version : "—"],
-                      ["Paths", document.stats.paths],
-                      ["Operations", document.stats.operations],
-                      ["Webhooks", document.stats.webhooks],
-                      ["Schemas", document.stats.schemas],
-                      ["Reusable media types", document.stats.mediaTypes],
-                      ["Additional operations", document.stats.additionalOperations],
-                      ["Streaming media types", document.stats.streamingMediaTypes],
-                      ["References", document.stats.refs],
-                      ["Deprecated nodes", document.stats.deprecated],
+                      [t("inspector.jsonSchemaDialect"), document.raw.jsonSchemaDialect],
+                      [t("inspector.title"), isRecord(document.raw.info) ? document.raw.info.title : "—"],
+                      [t("inspector.version"), isRecord(document.raw.info) ? document.raw.info.version : "—"],
+                      [t("inspector.paths"), document.stats.paths],
+                      [t("inspector.operations"), document.stats.operations],
+                      [t("inspector.webhooks"), document.stats.webhooks],
+                      [t("inspector.schemas"), document.stats.schemas],
+                      [t("inspector.reusableMediaTypes"), document.stats.mediaTypes],
+                      [t("inspector.additionalOperations"), document.stats.additionalOperations],
+                      [t("inspector.streamingMediaTypes"), document.stats.streamingMediaTypes],
+                      [t("inspector.references"), document.stats.refs],
+                      [t("inspector.deprecatedNodes"), document.stats.deprecated],
                     ]}
                   />
                 </Section>
-                <Section title="Health">
+                <Section title={t("inspector.health")}>
                   <KeyValue
                     entries={[
-                      ["External references", document.stats.externalRefs],
-                      ["Unresolved internal references", document.stats.unresolvedInternalRefs],
-                      ["Potentially unused schemas", document.stats.orphanSchemas],
+                      [t("inspector.externalReferences"), document.stats.externalRefs],
+                      [t("inspector.unresolvedInternal"), document.stats.unresolvedInternalRefs],
+                      [t("inspector.potentiallyUnused"), document.stats.orphanSchemas],
                     ]}
                   />
                 </Section>
@@ -399,69 +401,69 @@ export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
 
             {model.kind === "operation" ? (
               <>
-                <Section title="Operation">
+                <Section title={t("inspector.operation")}>
                   <KeyValue
                     entries={[
-                      ["Method", model.metadata.method ?? "—"],
-                      ["Operation kind", model.metadata.additionalOperation === true ? "additional operation" : "fixed operation"],
-                      ["Path", model.metadata.path ?? "—"],
-                      ["Operation ID", record.operationId ?? "—"],
-                      ["Deprecated", record.deprecated ? "yes" : "no"],
-                      ["Tags", Array.isArray(record.tags) ? record.tags.join(", ") : "—"],
-                      ["Security", Array.isArray(record.security) ? JSON.stringify(record.security) : "global"],
+                      [t("inspector.method"), model.metadata.method ?? "—"],
+                      [t("inspector.operationKind"), model.metadata.additionalOperation === true ? t("inspector.additionalOperation") : t("inspector.fixedOperation")],
+                      [t("inspector.path"), model.metadata.path ?? "—"],
+                      [t("inspector.operationId"), record.operationId ?? "—"],
+                      [t("inspector.deprecated"), record.deprecated ? t("inspector.yes") : t("inspector.no")],
+                      [t("inspector.tags"), Array.isArray(record.tags) ? record.tags.join(", ") : "—"],
+                      [t("inspector.security"), Array.isArray(record.security) ? JSON.stringify(record.security) : "global"],
                     ]}
                   />
                 </Section>
                 <AddStepPanel operation={model} />
-                <Section title="Parameters">
+                <Section title={t("inspector.parameters")}>
                   <DataTable
-                    headers={["Name", "In", "Required", "Type", "Description"]}
-                    rows={parameterTable(model, document.raw)}
+                    headers={[t("inspector.name"), "In", "Required", "Type", "Description"]}
+                    rows={parameterTable(model, document.raw, t)}
                   />
                 </Section>
-                <Section title="Request body">
+                <Section title={t("inspector.requestBody")}>
                   <KeyValue
                     entries={[
-                      ["Required", isRecord(record.requestBody) && record.requestBody.required ? "yes" : "no"],
-                      ["Content types", contentTypes(record.requestBody)],
-                      ["Schema", firstRef(isRecord(record.requestBody) ? record.requestBody : undefined) ?? "inline"],
+                      [t("inspector.required"), isRecord(record.requestBody) && record.requestBody.required ? t("inspector.yes") : t("inspector.no")],
+                      [t("inspector.contentTypes"), contentTypes(record.requestBody)],
+                      [t("inspector.schema"), firstRef(isRecord(record.requestBody) ? record.requestBody : undefined) ?? t("inspector.inline")],
                     ]}
                   />
                 </Section>
-                <Section title="Responses">
-                  <DataTable headers={["Status", "Description", "Schema"]} rows={responseTable(record.responses)} />
+                <Section title={t("inspector.responses")}>
+                  <DataTable headers={[t("inspector.status"), t("inspector.description"), t("inspector.schema")]} rows={responseTable(record.responses, t)} />
                 </Section>
               </>
             ) : null}
 
             {model.kind === "schema" || model.kind === "property" || model.kind === "schemaVariant" ? (
               <>
-                <Section title="Schema">
+                <Section title={t("inspector.schema")}>
                   <KeyValue
                     entries={[
-                      ["Type", schemaType(value)],
-                      ["Format", record.format ?? "—"],
-                      ["Required", model.metadata.required ? "yes" : "no"],
-                      ["Nullable", record.nullable ? "yes" : "no"],
-                      ["Read only", record.readOnly ? "yes" : "no"],
-                      ["Write only", record.writeOnly ? "yes" : "no"],
+                      [t("inspector.type"), schemaType(value)],
+                      [t("inspector.format"), record.format ?? "—"],
+                      [t("inspector.required"), model.metadata.required ? t("inspector.yes") : t("inspector.no")],
+                      [t("inspector.nullable"), record.nullable ? t("inspector.yes") : t("inspector.no")],
+                      [t("inspector.readOnly"), record.readOnly ? t("inspector.yes") : t("inspector.no")],
+                      [t("inspector.writeOnly"), record.writeOnly ? t("inspector.yes") : t("inspector.no")],
                     ]}
                   />
                 </Section>
-                <Section title="Constraints">
+                <Section title={t("inspector.constraints")}>
                   <p className="description mono">{constraints(value)}</p>
                 </Section>
                 {isRecord(record.discriminator) ? (
-                  <Section title="Discriminator">
+                  <Section title={t("inspector.discriminator")}>
                     <KeyValue
                       entries={[
-                        ["Property name", record.discriminator.propertyName],
-                        ["Default mapping", record.discriminator.defaultMapping],
+                        [t("inspector.propertyName"), record.discriminator.propertyName],
+                        [t("inspector.defaultMapping"), record.discriminator.defaultMapping],
                       ]}
                     />
                     {isRecord(record.discriminator.mapping) ? (
                       <DataTable
-                        headers={["Payload value", "Schema name or URI"]}
+                        headers={[t("inspector.payloadValue"), t("inspector.schemaNameOrUri")]}
                         rows={Object.entries(record.discriminator.mapping).map(([payloadValue, target]) => [
                           payloadValue,
                           displayValue(target),
@@ -471,27 +473,27 @@ export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
                   </Section>
                 ) : null}
                 {isRecord(record.xml) ? (
-                  <Section title="XML">
+                  <Section title={t("inspector.xml")}>
                     <KeyValue
                       entries={[
-                        ["Node type", record.xml.nodeType],
-                        ["Name", record.xml.name],
-                        ["Namespace", record.xml.namespace],
-                        ["Prefix", record.xml.prefix],
-                        ["Attribute", record.xml.attribute ? "yes" : "no"],
-                        ["Wrapped", record.xml.wrapped ? "yes" : "no"],
+                        [t("inspector.nodeType"), record.xml.nodeType],
+                        [t("inspector.name"), record.xml.name],
+                        [t("inspector.namespace"), record.xml.namespace],
+                        [t("inspector.prefix"), record.xml.prefix],
+                        [t("inspector.attribute"), record.xml.attribute ? t("inspector.yes") : t("inspector.no")],
+                        [t("inspector.wrapped"), record.xml.wrapped ? t("inspector.yes") : t("inspector.no")],
                       ]}
                     />
                   </Section>
                 ) : null}
                 {isRecord(record.properties) ? (
-                  <Section title="Properties">
+                  <Section title={t("inspector.properties")}>
                     <DataTable
-                      headers={["Field", "Type", "Required", "Constraints", "Reference"]}
+                      headers={[t("inspector.field"), t("inspector.type"), t("inspector.required"), t("inspector.constraints"), t("inspector.reference")]}
                       rows={Object.entries(record.properties).map(([name, property]) => [
                         name,
                         schemaType(property),
-                        Array.isArray(record.required) && record.required.includes(name) ? "yes" : "no",
+                        Array.isArray(record.required) && record.required.includes(name) ? t("inspector.yes") : t("inspector.no"),
                         constraints(property),
                         firstRef(property) ?? "—",
                       ])}
@@ -502,38 +504,38 @@ export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
             ) : null}
 
             {model.kind === "parameter" ? (
-              <Section title="Parameter">
+              <Section title={t("inspector.parameter")}>
                 <KeyValue
                   entries={[
-                    ["Name", record.name ?? "—"],
-                    ["Location", record.in ?? "—"],
-                    ["Required", record.required ? "yes" : "no"],
-                    ["Deprecated", record.deprecated ? "yes" : "no"],
-                    ["Style", record.style ?? "—"],
-                    ["Explode", record.explode ? "yes" : "no"],
-                    ["Type", isRecord(record.schema) ? schemaType(record.schema) : "—"],
-                    ["Content types", contentTypes(record)],
+                    [t("inspector.name"), record.name ?? "—"],
+                    [t("inspector.location"), record.in ?? "—"],
+                    [t("inspector.required"), record.required ? t("inspector.yes") : t("inspector.no")],
+                    [t("inspector.deprecated"), record.deprecated ? t("inspector.yes") : t("inspector.no")],
+                    [t("inspector.style"), record.style ?? "—"],
+                    [t("inspector.explode"), record.explode ? t("inspector.yes") : t("inspector.no")],
+                    [t("inspector.type"), isRecord(record.schema) ? schemaType(record.schema) : "—"],
+                    [t("inspector.contentTypes"), contentTypes(record)],
                   ]}
                 />
               </Section>
             ) : null}
             {model.kind === "parameter" && (record.example !== undefined || isRecord(record.examples)) ? (
-              <Section title="Parameter examples">
+              <Section title={t("inspector.parameterExamples")}>
                 {record.example !== undefined ? (
                   <KeyValue
                     entries={[
-                      ["Inline example", record.example],
+                      [t("inspector.inlineExample"), record.example],
                     ]}
                   />
                 ) : null}
                 {isRecord(record.examples) ? (
-                  <DataTable headers={["Name", "Summary", "Representation", "Value"]} rows={exampleRows(record.examples)} />
+                  <DataTable headers={[t("inspector.name"), "Summary", "Representation", "Value"]} rows={exampleRows(record.examples, t)} />
                 ) : null}
               </Section>
             ) : null}
 
             {model.kind === "requestBody" || model.kind === "response" || model.kind === "mediaType" ? (
-              <Section title={model.kind === "mediaType" ? "Media type" : "Payload"}>
+              <Section title={model.kind === "mediaType" ? t("inspector.mediaType") : t("inspector.payload")}>
                 <KeyValue
                   entries={[
                     [
@@ -542,17 +544,17 @@ export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
                         ? model.metadata.contentType ?? model.title
                         : contentTypes(value),
                     ],
-                    ["Description", record.description ?? "—"],
-                    ["Required", record.required ? "yes" : "no"],
-                    ["Schema reference", firstRef(record.schema) ?? firstRef(value) ?? "inline or absent"],
-                    ["Item schema reference", firstRef(record.itemSchema) ?? "—"],
-                    ["Sequential / streaming", model.metadata.streaming === true ? "yes" : "no"],
-                    ["Inline example", model.kind === "mediaType" ? record.example : undefined],
+                    [t("inspector.description"), record.description ?? "—"],
+                    [t("inspector.required"), record.required ? t("inspector.yes") : t("inspector.no")],
+                    [t("inspector.schemaReference"), firstRef(record.schema) ?? firstRef(value) ?? "inline or absent"],
+                    [t("inspector.itemSchemaReference"), firstRef(record.itemSchema) ?? "—"],
+                    [t("inspector.sequentialStreaming"), model.metadata.streaming === true ? t("inspector.yes") : t("inspector.no")],
+                    [t("inspector.inlineExample"), model.kind === "mediaType" ? record.example : undefined],
                   ]}
                 />
                 {encodingRows(value).length > 0 ? (
                   <DataTable
-                    headers={["Path", "Content type", "Style", "Explode", "Nested"]}
+                    headers={[t("inspector.path"), "Content type", "Style", "Explode", "Nested"]}
                     rows={encodingRows(value)}
                   />
                 ) : null}
@@ -560,80 +562,80 @@ export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
             ) : null}
 
             {model.kind === "mediaType" ? (
-              <Section title="Examples">
+              <Section title={t("inspector.examples")}>
                 <DataTable
-                  headers={["Name", "Summary", "Representation", "Value"]}
-                  rows={exampleRows(record.examples)}
+                  headers={[t("inspector.name"), "Summary", "Representation", "Value"]}
+                  rows={exampleRows(record.examples, t)}
                 />
               </Section>
             ) : null}
 
             {model.kind === "securityScheme" ? (
-              <Section title="Security scheme">
+              <Section title={t("inspector.securityScheme")}>
                 <KeyValue
                   entries={[
-                    ["Type", record.type ?? "—"],
-                    ["Scheme", record.scheme ?? "—"],
-                    ["Bearer format", record.bearerFormat ?? "—"],
-                    ["In", record.in ?? "—"],
-                    ["Flows", Object.keys(isRecord(record.flows) ? record.flows : {}).join(", ") || "—"],
-                    ["OAuth metadata URL", record.oauth2MetadataUrl],
-                    ["OpenID Connect URL", record.openIdConnectUrl],
-                    ["Deprecated", record.deprecated ? "yes" : "no"],
+                    [t("inspector.type"), record.type ?? "—"],
+                    [t("inspector.scheme"), record.scheme ?? "—"],
+                    [t("inspector.bearerFormat"), record.bearerFormat ?? "—"],
+                    [t("inspector.in"), record.in ?? "—"],
+                    [t("inspector.flows"), Object.keys(isRecord(record.flows) ? record.flows : {}).join(", ") || "—"],
+                    [t("inspector.oauthMetadataUrl"), record.oauth2MetadataUrl],
+                    [t("inspector.openIdConnectUrl"), record.openIdConnectUrl],
+                    [t("inspector.deprecated"), record.deprecated ? t("inspector.yes") : t("inspector.no")],
                   ]}
                 />
                 {isRecord(record.flows) ? (
                   <DataTable
-                    headers={["Flow", "Authorization URL", "Token URL", "Refresh URL", "Scopes"]}
-                    rows={oauthFlowRows(record.flows)}
+                    headers={[t("inspector.flow"), t("inspector.authorizationUrl"), t("inspector.tokenUrl"), t("inspector.refreshUrl"), t("inspector.scopes")]}
+                    rows={oauthFlowRows(record.flows, t)}
                   />
                 ) : null}
               </Section>
             ) : null}
 
             {model.kind === "tag" ? (
-              <Section title="Tag">
+              <Section title={t("inspector.tag")}>
                 <KeyValue
                   entries={[
-                    ["Name", record.name],
-                    ["Summary", record.summary],
-                    ["Kind", record.kind],
-                    ["Parent", record.parent],
-                    ["External docs", isRecord(record.externalDocs) ? record.externalDocs.url : undefined],
+                    [t("inspector.name"), record.name],
+                    [t("inspector.summary"), record.summary],
+                    [t("inspector.kindLabel"), record.kind],
+                    [t("inspector.parent"), record.parent],
+                    [t("inspector.externalDocs"), isRecord(record.externalDocs) ? record.externalDocs.url : undefined],
                   ]}
                 />
               </Section>
             ) : null}
 
             {model.kind === "server" ? (
-              <Section title="Server">
+              <Section title={t("inspector.server")}>
                 <KeyValue
                   entries={[
-                    ["Name", record.name],
-                    ["URL", record.url],
-                    ["Description", record.description],
-                    ["Variables", Object.keys(isRecord(record.variables) ? record.variables : {}).join(", ")],
+                    [t("inspector.name"), record.name],
+                    [t("inspector.url"), record.url],
+                    [t("inspector.description"), record.description],
+                    [t("inspector.variables"), Object.keys(isRecord(record.variables) ? record.variables : {}).join(", ")],
                   ]}
                 />
               </Section>
             ) : null}
 
             {model.kind === "example" ? (
-              <Section title="Example">
+              <Section title={t("inspector.example")}>
                 <KeyValue
                   entries={[
-                    ["Summary", record.summary],
-                    ["Description", record.description],
-                    ["Data value", record.dataValue],
-                    ["Serialized value", record.serializedValue],
-                    ["External value", record.externalValue],
-                    ["Legacy value", record.value],
+                    [t("inspector.summary"), record.summary],
+                    [t("inspector.description"), record.description],
+                    [t("inspector.dataValue"), record.dataValue],
+                    [t("inspector.serializedValue"), record.serializedValue],
+                    [t("inspector.externalValue"), record.externalValue],
+                    [t("inspector.legacyValue"), record.value],
                   ]}
                 />
               </Section>
             ) : null}
 
-            <Section title="Location">
+            <Section title={t("inspector.location")}>
               <p className="mono description">{prettyPointer(model.pointer)}</p>
             </Section>
           </>
@@ -642,7 +644,7 @@ export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
         {tab === "source" ? (
           <div className="source-panel">
             <div className="source-toolbar">
-              <span>Normalized YAML for this node</span>
+              <span>{t("inspector.normalizedYaml")}</span>
               <button
                 type="button"
                 onClick={async () => {
@@ -652,7 +654,7 @@ export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
                 }}
               >
                 <ClipboardCopy size={14} />
-                {copied ? "Copied" : "Copy"}
+                {copied ? t("inspector.copied") : t("inspector.copy")}
               </button>
             </div>
             <pre>{source || "—"}</pre>
@@ -661,7 +663,7 @@ export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
 
         {tab === "relations" ? (
           <div className="relations-panel">
-            <Section title={`Incoming (${relations.incoming.length})`}>
+            <Section title={t("inspector.incomingCount", { count: relations.incoming.length })}>
               <div className="relation-list">
                 {relations.incoming.map((edge) => {
                   const target = document.models.get(edge.source);
@@ -676,7 +678,7 @@ export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
                 })}
               </div>
             </Section>
-            <Section title={`Outgoing (${relations.outgoing.length})`}>
+            <Section title={t("inspector.outgoingCount", { count: relations.outgoing.length })}>
               <div className="relation-list">
                 {relations.outgoing.map((edge) => {
                   const target = document.models.get(edge.target);
@@ -699,35 +701,35 @@ export function InspectorPanel({ open, onToggle }: InspectorPanelProps) {
   );
 }
 
-function parameterTable(model: VisualNodeModel, root: Record<string, unknown>) {
+function parameterTable(model: VisualNodeModel, root: Record<string, unknown>, t: ReturnType<typeof useT>) {
   const operation = isRecord(model.value) ? model.value : {};
   const parentPointer = model.pointer.split("/").slice(0, -1).join("/");
   const parent = isRecord(valueAtPointer(root, parentPointer)) ? valueAtPointer(root, parentPointer) as Record<string, unknown> : {};
   const own = Array.isArray(operation.parameters) ? operation.parameters : [];
   const common = Array.isArray(parent.parameters) ? parent.parameters : [];
   const parameters = [...own, ...common];
-  if (parameters.length === 0) return [["—", "—", "—", "—", "No parameters"] as React.ReactNode[]];
+  if (parameters.length === 0) return [["—", "—", "—", "—", t("inspector.noParameters")] as React.ReactNode[]];
   return parameters.map((parameter, index) => {
     if (typeof parameter === "string") {
-      return [parameter, "$ref", index < own.length ? "derived" : "path-level", "—", parameter] as React.ReactNode[];
+      return [parameter, "$ref", index < own.length ? t("inspector.derived") : t("inspector.pathLevel"), "—", parameter] as React.ReactNode[];
     }
     if (!isRecord(parameter)) return ["—", "—", "—", "—", "—"] as React.ReactNode[];
     return [
       String(parameter.name ?? "—"),
       String(parameter.in ?? "—"),
-      parameter.required ? "yes" : "no",
+      parameter.required ? t("inspector.yes") : t("inspector.no"),
       isRecord(parameter.schema) ? schemaType(parameter.schema) : "—",
       String(parameter.description ?? parameter.summary ?? "—"),
     ] as React.ReactNode[];
   });
 }
 
-function responseTable(responses: unknown) {
-  if (!isRecord(responses)) return [["—", "No responses", "—"] as React.ReactNode[]];
+function responseTable(responses: unknown, t: ReturnType<typeof useT>) {
+  if (!isRecord(responses)) return [["—", t("inspector.noResponses"), "—"] as React.ReactNode[]];
   return Object.entries(responses).map(([status, response]) => [
     status,
     isRecord(response) ? String(response.summary ?? response.description ?? "—") : "—",
-    firstRef(response) ?? "inline or absent",
+    firstRef(response) ?? t("inspector.inlineOrAbsent"),
   ] as React.ReactNode[]);
 }
 
