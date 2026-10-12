@@ -9,6 +9,68 @@ import { useT } from "../i18n";
 const METHOD_ORDER = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD", "TRACE", "QUERY"];
 const BUILTIN_METHOD_CLASSES = ["get", "post", "put", "patch", "delete", "options", "head", "trace", "query"];
 
+function AtlasMark({ size = 36 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 64 64"
+      fill="none"
+      aria-hidden
+      style={{ display: "block" }}
+    >
+      <defs>
+        <linearGradient id="atlas-green" x1="8" y1="32" x2="40" y2="6" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#059669" />
+          <stop offset="55%" stopColor="#10b981" />
+          <stop offset="100%" stopColor="#34d399" />
+        </linearGradient>
+        <linearGradient id="atlas-purple" x1="52" y1="10" x2="50" y2="54" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#8b5cf6" />
+          <stop offset="55%" stopColor="#a855f7" />
+          <stop offset="100%" stopColor="#c084fc" />
+        </linearGradient>
+        <linearGradient id="atlas-cyan" x1="42" y1="58" x2="6" y2="32" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#0891b2" />
+          <stop offset="55%" stopColor="#06b6d4" />
+          <stop offset="100%" stopColor="#22d3ee" />
+        </linearGradient>
+        <radialGradient id="atlas-core" cx="32" cy="32" r="10" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#fefce8" stopOpacity="1" />
+          <stop offset="100%" stopColor="#fefce8" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+
+      {/* Three thick jade arcs, radius 26, stroke 9 — fills 88% of viewBox */}
+      <path
+        d="M 6 32 A 26 26 0 0 1 38 6"
+        stroke="url(#atlas-green)"
+        strokeWidth="9"
+        strokeLinecap="round"
+        fill="none"
+      />
+      <path
+        d="M 47 12 A 26 26 0 0 1 52 50"
+        stroke="url(#atlas-purple)"
+        strokeWidth="9"
+        strokeLinecap="round"
+        fill="none"
+      />
+      <path
+        d="M 47 55 A 26 26 0 0 1 8 40"
+        stroke="url(#atlas-cyan)"
+        strokeWidth="9"
+        strokeLinecap="round"
+        fill="none"
+      />
+
+      {/* Center glow */}
+      <circle cx="32" cy="32" r="10" fill="url(#atlas-core)" />
+      <circle cx="32" cy="32" r="4" fill="currentColor" opacity="0.9" />
+    </svg>
+  );
+}
+
 function methodClass(method: string) {
   const normalized = method.toLowerCase();
   return BUILTIN_METHOD_CLASSES.includes(normalized) ? normalized : "additional";
@@ -64,10 +126,10 @@ export function TopBar() {
     <header className="top-bar">
       <div className="brand">
         <span className="brand-icon">
-          <Waypoints size={21} />
+          <AtlasMark size={36} />
         </span>
         <div>
-          <strong>OpenAPI Visualizer</strong>
+          <strong>API Atlas</strong>
           <span>{surface === "workflow" ? t("app.workflowStudio") : fileName ?? t("app.noDocument")}</span>
         </div>
       </div>

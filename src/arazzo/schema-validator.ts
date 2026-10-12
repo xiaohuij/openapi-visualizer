@@ -36,7 +36,7 @@ async function loadValidator(version: ArazzoSpecificationVersion) {
         ]);
         await import("@hyperjump/json-schema/draft-2020-12");
         const core = coreModule as unknown as HyperjumpCore;
-        const id = typeof schema.$id === "string" ? schema.$id : `https://openapi-visualizer.local/arazzo/${version}/schema`;
+        const id = typeof schema.$id === "string" ? schema.$id : `https://api-atlas.local/arazzo/${version}/schema`;
         core.registerSchema(schema, id);
         return core.validate(id);
       })(),
